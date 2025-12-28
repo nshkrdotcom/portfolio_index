@@ -24,6 +24,41 @@ defmodule PortfolioIndex.Adapters.VectorStore.PgvectorTest do
       behaviours = Pgvector.__info__(:attributes)[:behaviour] || []
       assert PortfolioCore.Ports.VectorStore in behaviours
     end
+
+    test "exposes a VectorStore.Hybrid wrapper" do
+      behaviours =
+        PortfolioIndex.Adapters.VectorStore.Pgvector.Hybrid.__info__(:attributes)[:behaviour] ||
+          []
+
+      assert PortfolioCore.Ports.VectorStore.Hybrid in behaviours
+    end
+  end
+
+  describe "fulltext_search/4" do
+    defmodule StubFullText do
+      def search(_index_id, _query, _k, _opts) do
+        {:ok,
+         [
+           %{
+             id: "doc_1",
+             content: "Fulltext match",
+             score: 0.7,
+             metadata: %{"source" => "fulltext"}
+           }
+         ]}
+      end
+    end
+
+    test "maps fulltext results to vector store search_result format" do
+      assert {:ok, [result]} =
+               Pgvector.fulltext_search("idx", "query", 5, fulltext_module: StubFullText)
+
+      assert result.id == "doc_1"
+      assert result.score == 0.7
+      assert result.vector == nil
+      assert result.metadata["source"] == "fulltext"
+      assert result.metadata["content"] == "Fulltext match"
+    end
   end
 
   # =============================================================================

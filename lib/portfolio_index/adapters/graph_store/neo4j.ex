@@ -29,6 +29,8 @@ defmodule PortfolioIndex.Adapters.GraphStore.Neo4j do
 
   @behaviour PortfolioCore.Ports.GraphStore
 
+  alias PortfolioIndex.Adapters.GraphStore.Neo4j.Traversal
+
   require Logger
 
   @impl true
@@ -190,6 +192,19 @@ defmodule PortfolioIndex.Adapters.GraphStore.Neo4j do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @impl true
+  def traverse(graph_id, node_id, opts) do
+    depth = Keyword.get(opts, :max_depth, 2)
+
+    case Keyword.get(opts, :algorithm, :bfs) do
+      :dfs ->
+        Traversal.bfs(graph_id, node_id, depth, opts)
+
+      _ ->
+        Traversal.bfs(graph_id, node_id, depth, opts)
     end
   end
 

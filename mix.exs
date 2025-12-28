@@ -1,7 +1,7 @@
 defmodule PortfolioIndex.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/nshkrdotcom/portfolio_index"
 
   def project do
@@ -44,7 +44,7 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      {:portfolio_core, "~> 0.2.0"},
+      {:portfolio_core, "~> 0.3.0"},
 
       # Database adapters
       {:ecto_sql, "~> 3.11"},
@@ -115,8 +115,11 @@ defmodule PortfolioIndex.MixProject do
         "Graph Store Adapters": ~r/PortfolioIndex\.Adapters\.GraphStore\./,
         Embedders: ~r/PortfolioIndex\.Adapters\.Embedder\./,
         LLMs: ~r/PortfolioIndex\.Adapters\.LLM\./,
+        Chunkers: ~r/PortfolioIndex\.Adapters\.Chunker\./,
+        Rerankers: ~r/PortfolioIndex\.Adapters\.Reranker\./,
         Pipelines: ~r/PortfolioIndex\.Pipelines\./,
-        "RAG Strategies": ~r/PortfolioIndex\.RAG\./
+        "RAG Strategies": ~r/PortfolioIndex\.RAG\./,
+        GraphRAG: ~r/PortfolioIndex\.GraphRAG\./
       ]
     ]
   end

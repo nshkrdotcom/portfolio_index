@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-12-28
+
+### Added
+
+#### Chunker Adapters
+- Character chunker with boundary modes (`:word`, `:sentence`, `:none`)
+- Paragraph chunker with intelligent merging and splitting
+- Sentence chunker with NLP tokenization and abbreviation handling
+- Semantic chunker using embedding-based similarity grouping
+
+#### GraphRAG Components
+- `CommunityDetector` with label propagation algorithm
+- `CommunitySummarizer` with LLM-based summarization and embedding generation
+- `EntityExtractor` with batch support and entity resolution
+
+#### Graph Store Enhancements (Neo4j)
+- `EntitySearch` module for vector-based entity search
+- `Community` module for community CRUD and vector search
+- `Traversal` module for BFS, subgraph extraction, and path finding
+
+#### Reranker Adapters
+- LLM-based reranker with customizable prompts
+- Passthrough reranker for testing and baselines
+
+#### Retriever Enhancements
+- GraphRAG local/global/hybrid search modes
+- PostgreSQL tsvector-based full-text search
+
+### Changed
+
+- GraphRAG strategy now supports `:mode` option (`:local`, `:global`, `:hybrid`)
+- Updated portfolio_core dependency to path reference for development
+
 ## [0.2.0] - 2025-12-27
 
 ### Added
@@ -48,7 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of PortfolioIndex
 
-[Unreleased]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nshkrdotcom/portfolio_index/releases/tag/v0.1.0

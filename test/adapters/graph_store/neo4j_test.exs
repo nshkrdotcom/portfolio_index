@@ -12,6 +12,11 @@ defmodule PortfolioIndex.Adapters.GraphStore.Neo4jTest do
       behaviours = Neo4j.__info__(:attributes)[:behaviour] || []
       assert PortfolioCore.Ports.GraphStore in behaviours
     end
+
+    test "exports traverse/3" do
+      assert Code.ensure_loaded?(Neo4j)
+      assert function_exported?(Neo4j, :traverse, 3)
+    end
   end
 
   # =============================================================================

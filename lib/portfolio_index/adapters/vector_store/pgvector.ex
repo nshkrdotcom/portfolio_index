@@ -27,6 +27,7 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
 
   @behaviour PortfolioCore.Ports.VectorStore
 
+  alias PortfolioIndex.Adapters.VectorStore.Pgvector.FullText
   alias PortfolioIndex.Repo
   require Logger
 
@@ -161,6 +162,21 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
       _ -> vector_search(index_id, query_vector, k, opts)
     end
   end
+
+  @impl true
+  def fulltext_search(index_id, query, k, opts) when is_binary(query) do
+    fulltext_module = Keyword.get(opts, :fulltext_module, FullText)
+
+    case fulltext_module.search(index_id, query, k, opts) do
+      {:ok, results} ->
+        {:ok, Enum.map(results, &normalize_fulltext_result/1)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def fulltext_search(_index_id, _query, _k, _opts), do: {:ok, []}
 
   defp vector_search(index_id, query_vector, k, opts) do
     start_time = System.monotonic_time(:millisecond)
@@ -587,6 +603,29 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
     |> String.trim_trailing("]")
     |> String.split(",")
     |> Enum.map(&String.to_float/1)
+  end
+
+  defp normalize_fulltext_result(result) do
+    id = result[:id] || result["id"]
+    score = result[:score] || result["score"] || 0.0
+    metadata = result[:metadata] || result["metadata"] || %{}
+    content = result[:content] || result["content"]
+
+    metadata =
+      if is_nil(content) do
+        metadata
+      else
+        metadata
+        |> Map.put_new("content", content)
+        |> Map.put_new(:content, content)
+      end
+
+    %{
+      id: id,
+      score: score,
+      metadata: metadata,
+      vector: nil
+    }
   end
 
   defp emit_telemetry(operation, measurements, metadata) do

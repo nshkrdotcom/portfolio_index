@@ -30,31 +30,26 @@ defmodule PortfolioIndex.RAG.Strategies.HybridTest do
         {:ok, %{vector: [0.1, 0.2], token_count: 2}}
       end)
 
-      expect(VectorStore, :search, 2, fn "idx", query, _limit, opts ->
-        case {query, Keyword.get(opts, :mode)} do
-          {[_ | _], nil} ->
-            {:ok,
-             [
-               %{
-                 id: "doc_v",
-                 score: 0.9,
-                 metadata: %{"content" => "Vector match", "source" => "vector"}
-               }
-             ]}
+      expect(VectorStore, :search, fn "idx", [_ | _], _limit, _opts ->
+        {:ok,
+         [
+           %{
+             id: "doc_v",
+             score: 0.9,
+             metadata: %{"content" => "Vector match", "source" => "vector"}
+           }
+         ]}
+      end)
 
-          {"Elixir", :keyword} ->
-            {:ok,
-             [
-               %{
-                 id: "doc_k",
-                 score: 1.0,
-                 metadata: %{"content" => "Keyword match", "source" => "keyword"}
-               }
-             ]}
-
-          other ->
-            flunk("unexpected search call: #{inspect(other)}")
-        end
+      expect(VectorStore, :fulltext_search, fn "idx", "Elixir", _limit, _opts ->
+        {:ok,
+         [
+           %{
+             id: "doc_k",
+             score: 1.0,
+             metadata: %{"content" => "Keyword match", "source" => "keyword"}
+           }
+         ]}
       end)
 
       context = %{

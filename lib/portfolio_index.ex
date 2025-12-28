@@ -10,7 +10,9 @@ defmodule PortfolioIndex do
   ## Adapters
 
   - Vector Stores: `PortfolioIndex.Adapters.VectorStore.Pgvector`
+    (hybrid fulltext via `PortfolioIndex.Adapters.VectorStore.Pgvector.Hybrid`)
   - Graph Stores: `PortfolioIndex.Adapters.GraphStore.Neo4j`
+    (community ops via `PortfolioIndex.Adapters.GraphStore.Neo4j.Community`)
   - Embedders: `PortfolioIndex.Adapters.Embedder.Gemini`
   - LLMs: `PortfolioIndex.Adapters.LLM.Gemini`, `PortfolioIndex.Adapters.LLM.Anthropic`,
     `PortfolioIndex.Adapters.LLM.OpenAI`

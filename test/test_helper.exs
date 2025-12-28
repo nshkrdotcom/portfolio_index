@@ -4,6 +4,11 @@ ExUnit.start(exclude: [:integration, :skip])
 # Define Mox mocks for all ports
 Mox.defmock(PortfolioIndex.Mocks.VectorStore, for: PortfolioCore.Ports.VectorStore)
 Mox.defmock(PortfolioIndex.Mocks.GraphStore, for: PortfolioCore.Ports.GraphStore)
+
+Mox.defmock(PortfolioIndex.Mocks.GraphStoreCommunity,
+  for: PortfolioCore.Ports.GraphStore.Community
+)
+
 Mox.defmock(PortfolioIndex.Mocks.DocumentStore, for: PortfolioCore.Ports.DocumentStore)
 Mox.defmock(PortfolioIndex.Mocks.Embedder, for: PortfolioCore.Ports.Embedder)
 Mox.defmock(PortfolioIndex.Mocks.LLM, for: PortfolioCore.Ports.LLM)

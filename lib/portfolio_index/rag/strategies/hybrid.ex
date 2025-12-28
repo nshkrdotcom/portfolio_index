@@ -34,6 +34,7 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
     {:nowarn_function, emit_telemetry: 2}
   ]
 
+  alias PortfolioCore.VectorStore.RRF
   alias PortfolioIndex.Adapters.Embedder.Gemini, as: DefaultEmbedder
   alias PortfolioIndex.Adapters.VectorStore.Pgvector, as: DefaultVectorStore
   alias PortfolioIndex.RAG.AdapterResolver
@@ -61,29 +62,16 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
 
     vector_opts = maybe_add_filter(vector_opts, filter)
     keyword_opts = Keyword.put(vector_opts, :mode, :keyword)
+    fulltext_opts = Keyword.delete(vector_opts, :mode)
 
     with {:ok, %{vector: query_vector, token_count: tokens}} <-
            embedder.embed(query, embedder_opts),
          {:ok, vector_results} <-
            vector_store.search(index_id, query_vector, k * 2, vector_opts) do
       keyword_results =
-        case vector_store.search(index_id, query, k * 2, keyword_opts) do
-          {:ok, results} ->
-            results
+        fetch_keyword_results(vector_store, index_id, query, k * 2, fulltext_opts, keyword_opts)
 
-          {:error, reason} ->
-            Logger.info("Keyword search unavailable: #{inspect(reason)}")
-            []
-        end
-
-      merged =
-        reciprocal_rank_fusion(
-          [
-            {:vector, vector_results},
-            {:keyword, keyword_results}
-          ],
-          k: rrf_k
-        )
+      merged = RRF.calculate_rrf_score(vector_results, keyword_results, k: rrf_k)
 
       final = Enum.take(merged, k)
 
@@ -125,38 +113,21 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
   - `opts` - Options including `:k` (default 60)
   """
   def reciprocal_rank_fusion(ranked_lists, opts) do
+    lists = Enum.map(ranked_lists, fn {_source, items} -> ensure_vector_key(items) end)
     k = Keyword.get(opts, :k, 60)
 
-    # Calculate RRF scores for each item
-    all_scores =
-      Enum.reduce(ranked_lists, %{}, fn {_source, items}, acc ->
-        merge_ranked_items(items, acc, k)
-      end)
+    case lists do
+      [] ->
+        []
 
-    # Sort by combined RRF score
-    all_scores
-    |> Map.values()
-    |> Enum.sort_by(fn {_item, score} -> -score end)
-    |> Enum.map(fn {item, score} ->
-      Map.put(item, :score, score)
-    end)
-  end
+      [items] ->
+        RRF.calculate_rrf_score(items, [], k: k)
 
-  defp merge_ranked_items(items, acc, k) do
-    items
-    |> Enum.with_index(1)
-    |> Enum.reduce(acc, fn {item, rank}, inner_acc ->
-      add_rrf_score(item, rank, inner_acc, k)
-    end)
-  end
-
-  defp add_rrf_score(item, rank, acc, k) do
-    item_id = item.id || item[:id]
-    rrf_score = 1.0 / (k + rank)
-
-    Map.update(acc, item_id, {item, rrf_score}, fn {existing, score} ->
-      {existing, score + rrf_score}
-    end)
+      [items_a, items_b | rest] ->
+        Enum.reduce(rest, RRF.calculate_rrf_score(items_a, items_b, k: k), fn items, acc ->
+          RRF.calculate_rrf_score(acc, ensure_vector_key(items), k: k)
+        end)
+    end
   end
 
   # Private functions
@@ -184,6 +155,32 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
 
   defp maybe_add_filter(vector_opts, nil), do: vector_opts
   defp maybe_add_filter(vector_opts, filter), do: Keyword.put(vector_opts, :filter, filter)
+
+  defp ensure_vector_key(items) do
+    Enum.map(items, &Map.put_new(&1, :vector, nil))
+  end
+
+  defp fetch_keyword_results(vector_store, index_id, query, limit, fulltext_opts, keyword_opts) do
+    if function_exported?(vector_store, :fulltext_search, 4) do
+      case vector_store.fulltext_search(index_id, query, limit, fulltext_opts) do
+        {:ok, results} ->
+          results
+
+        {:error, reason} ->
+          Logger.info("Fulltext search unavailable: #{inspect(reason)}")
+          []
+      end
+    else
+      case vector_store.search(index_id, query, limit, keyword_opts) do
+        {:ok, results} ->
+          results
+
+        {:error, reason} ->
+          Logger.info("Keyword search unavailable: #{inspect(reason)}")
+          []
+      end
+    end
+  end
 
   defp emit_telemetry(measurements, metadata) do
     :telemetry.execute(

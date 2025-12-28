@@ -1,22 +1,45 @@
 defmodule PortfolioIndex.RAG.Strategies.GraphRAG do
   @moduledoc """
-  Graph-aware RAG strategy.
+  Graph-aware RAG strategy with multiple search modes.
 
-  Combines vector similarity search with knowledge graph traversal:
-  1. Extract entities from query
-  2. Find matching nodes in graph
-  3. Traverse to related entities
-  4. Aggregate context from graph
-  5. Combine with vector search results
-  6. Return unified results
+  Combines vector similarity search with knowledge graph traversal.
+
+  ## Search Modes
+
+  - `:local` (default) - Entity-based traversal
+    1. Extract entities from query
+    2. Find matching nodes in graph
+    3. Traverse to related entities
+    4. Combine with vector search
+
+  - `:global` - Community-based search
+    1. Generate query embedding
+    2. Search community summaries
+    3. Return relevant community context
+
+  - `:hybrid` - Combines local and global search
+    1. Run both local and global search
+    2. Merge and rank results
+
+  ## Usage
+
+      # Local search (default)
+      {:ok, result} = GraphRAG.retrieve(query, context, [])
+
+      # Global search
+      {:ok, result} = GraphRAG.retrieve(query, context, mode: :global)
+
+      # Hybrid search
+      {:ok, result} = GraphRAG.retrieve(query, context, mode: :hybrid)
   """
 
   @behaviour PortfolioIndex.RAG.Strategy
 
-  @dialyzer [{:nowarn_function, retrieve: 3}]
+  @dialyzer [{:nowarn_function, retrieve: 3}, {:nowarn_function, do_retrieve: 4}]
 
   alias PortfolioIndex.Adapters.Embedder.Gemini, as: DefaultEmbedder
   alias PortfolioIndex.Adapters.GraphStore.Neo4j, as: DefaultGraphStore
+  alias PortfolioIndex.Adapters.GraphStore.Neo4j.Community
   alias PortfolioIndex.Adapters.LLM.Gemini, as: DefaultLLM
   alias PortfolioIndex.Adapters.VectorStore.Pgvector, as: DefaultVectorStore
   alias PortfolioIndex.RAG.AdapterResolver
@@ -26,6 +49,9 @@ defmodule PortfolioIndex.RAG.Strategies.GraphRAG do
   @default_depth 2
   @default_k 5
   @default_graph_id "default"
+  @default_mode :local
+
+  @type search_mode :: :local | :global | :hybrid
 
   @impl true
   def name, do: :graph_rag
@@ -35,6 +61,31 @@ defmodule PortfolioIndex.RAG.Strategies.GraphRAG do
 
   @impl true
   def retrieve(query, context, opts) do
+    mode = Keyword.get(opts, :mode, @default_mode)
+    do_retrieve(query, context, opts, mode)
+  end
+
+  # Mode-specific retrieval
+
+  @spec do_retrieve(String.t(), map(), keyword(), search_mode()) ::
+          {:ok, map()} | {:error, term()}
+  defp do_retrieve(query, context, opts, :local) do
+    local_search(query, context, opts)
+  end
+
+  defp do_retrieve(query, context, opts, :global) do
+    global_search(query, context, opts)
+  end
+
+  defp do_retrieve(query, context, opts, :hybrid) do
+    hybrid_search(query, context, opts)
+  end
+
+  @doc """
+  Local search using entity extraction and graph traversal.
+  """
+  @spec local_search(String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def local_search(query, context, opts) do
     start_time = System.monotonic_time(:millisecond)
     depth = Keyword.get(opts, :depth, @default_depth)
     k = Keyword.get(opts, :k, @default_k)
@@ -371,5 +422,152 @@ defmodule PortfolioIndex.RAG.Strategies.GraphRAG do
       measurements,
       metadata
     )
+  end
+
+  @doc """
+  Global search using community summaries.
+
+  Searches pre-computed community summaries for relevant context.
+  Best for broad, thematic queries.
+  """
+  @spec global_search(String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def global_search(query, context, opts) do
+    start_time = System.monotonic_time(:millisecond)
+    k = Keyword.get(opts, :k, @default_k)
+    graph_id = Keyword.get(opts, :graph_id, context[:graph_id] || @default_graph_id)
+    index_id = context[:index_id] || "default"
+
+    {embedder, embedder_opts} = AdapterResolver.resolve(context, :embedder, DefaultEmbedder)
+
+    case embedder.embed(query, embedder_opts) do
+      {:ok, embed_result} ->
+        embedding = embed_result.vector || embed_result[:vector]
+        embed_tokens = embed_result.token_count || embed_result[:token_count] || 0
+
+        community_results = search_communities(embedding, graph_id, k)
+
+        duration = System.monotonic_time(:millisecond) - start_time
+
+        emit_telemetry(
+          :retrieve,
+          %{
+            duration_ms: duration,
+            community_count: length(community_results),
+            tokens_used: embed_tokens
+          },
+          %{index_id: index_id, mode: :global}
+        )
+
+        items =
+          Enum.map(community_results, fn community ->
+            %{
+              id: "community:#{community.id}",
+              content: community.summary || format_community_content(community),
+              score: community.score || 0.5,
+              source: :community,
+              metadata: %{
+                member_count: length(community.member_ids || []),
+                level: community.level || 0
+              }
+            }
+          end)
+
+        {:ok,
+         %{
+           items: items,
+           query: query,
+           answer: nil,
+           strategy: :graph_rag,
+           mode: :global,
+           timing_ms: duration,
+           tokens_used: embed_tokens
+         }}
+
+      {:error, reason} ->
+        Logger.error("Global search embedding failed: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp search_communities(embedding, graph_id, k) do
+    case Community.search_communities_by_vector(graph_id, embedding, k) do
+      {:ok, communities} -> communities
+      {:error, _reason} -> []
+    end
+  end
+
+  defp format_community_content(community) do
+    members = community.member_ids || []
+    member_list = Enum.take(members, 10) |> Enum.join(", ")
+
+    """
+    Community #{community.id}
+    Members: #{member_list}#{if length(members) > 10, do: " (and #{length(members) - 10} more)", else: ""}
+    """
+  end
+
+  @doc """
+  Hybrid search combining local entity traversal and global community search.
+
+  Runs both searches in parallel and merges results.
+  """
+  @spec hybrid_search(String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def hybrid_search(query, context, opts) do
+    start_time = System.monotonic_time(:millisecond)
+    local_weight = Keyword.get(opts, :local_weight, 0.6)
+    global_weight = Keyword.get(opts, :global_weight, 0.4)
+
+    # Run both searches
+    local_task = Task.async(fn -> local_search(query, context, opts) end)
+    global_task = Task.async(fn -> global_search(query, context, opts) end)
+
+    local_result = Task.await(local_task, 30_000)
+    global_result = Task.await(global_task, 30_000)
+
+    case {local_result, global_result} do
+      {{:ok, local}, {:ok, global}} ->
+        # Merge and reweight results
+        local_items =
+          Enum.map(local.items, fn item ->
+            %{item | score: item.score * local_weight}
+          end)
+
+        global_items =
+          Enum.map(global.items, fn item ->
+            %{item | score: item.score * global_weight}
+          end)
+
+        merged =
+          (local_items ++ global_items)
+          |> Enum.sort_by(& &1.score, :desc)
+          |> Enum.uniq_by(& &1.id)
+
+        duration = System.monotonic_time(:millisecond) - start_time
+        total_tokens = (local.tokens_used || 0) + (global.tokens_used || 0)
+
+        {:ok,
+         %{
+           items: merged,
+           query: query,
+           answer: nil,
+           strategy: :graph_rag,
+           mode: :hybrid,
+           timing_ms: duration,
+           tokens_used: total_tokens,
+           local_count: length(local.items),
+           global_count: length(global.items)
+         }}
+
+      {{:ok, local}, {:error, _}} ->
+        # Fall back to local only
+        {:ok, Map.put(local, :mode, :hybrid_local_only)}
+
+      {{:error, _}, {:ok, global}} ->
+        # Fall back to global only
+        {:ok, Map.put(global, :mode, :hybrid_global_only)}
+
+      {{:error, reason}, {:error, _}} ->
+        {:error, reason}
+    end
   end
 end

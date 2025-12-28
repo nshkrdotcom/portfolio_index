@@ -19,8 +19,8 @@
 
 Portfolio Index implements the port specifications defined in [Portfolio Core](https://github.com/nshkrdotcom/portfolio_core), providing:
 
-- **Vector Store Adapters** - pgvector (PostgreSQL)
-- **Graph Store Adapters** - Neo4j via boltx
+- **Vector Store Adapters** - pgvector (PostgreSQL + fulltext hybrid)
+- **Graph Store Adapters** - Neo4j via boltx + community operations
 - **Embedding Providers** - Google Gemini
 - **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI GPT/o1
 - **Broadway Pipelines** - Ingestion and embedding with backpressure
