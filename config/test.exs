@@ -25,4 +25,6 @@ config :portfolio_index,
   vector_store: PortfolioIndex.Mocks.VectorStore,
   graph_store: PortfolioIndex.Mocks.GraphStore,
   embedder: PortfolioIndex.Mocks.Embedder,
-  llm: PortfolioIndex.Mocks.LLM
+  llm: PortfolioIndex.Mocks.LLM,
+  anthropic_sdk: ClaudeAgentSdkMock,
+  openai_sdk: CodexSdkMock

@@ -8,6 +8,8 @@ Mox.defmock(PortfolioIndex.Mocks.DocumentStore, for: PortfolioCore.Ports.Documen
 Mox.defmock(PortfolioIndex.Mocks.Embedder, for: PortfolioCore.Ports.Embedder)
 Mox.defmock(PortfolioIndex.Mocks.LLM, for: PortfolioCore.Ports.LLM)
 Mox.defmock(PortfolioIndex.Mocks.Chunker, for: PortfolioCore.Ports.Chunker)
+Mox.defmock(ClaudeAgentSdkMock, for: PortfolioIndex.Test.ClaudeAgentSdkBehaviour)
+Mox.defmock(CodexSdkMock, for: PortfolioIndex.Test.CodexSdkBehaviour)
 
 # Ensure sandbox mode for Ecto
 Ecto.Adapters.SQL.Sandbox.mode(PortfolioIndex.Repo, :manual)

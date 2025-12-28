@@ -22,9 +22,9 @@ Portfolio Index implements the port specifications defined in [Portfolio Core](h
 - **Vector Store Adapters** - pgvector (PostgreSQL)
 - **Graph Store Adapters** - Neo4j via boltx
 - **Embedding Providers** - Google Gemini
-- **LLM Providers** - Google Gemini (gemini-2.5-flash)
+- **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI GPT/o1
 - **Broadway Pipelines** - Ingestion and embedding with backpressure
-- **RAG Strategies** - Hybrid (RRF fusion), Self-RAG (self-critique)
+- **RAG Strategies** - Hybrid (RRF fusion), Self-RAG (self-critique), GraphRAG, Agentic
 
 ## Prerequisites
 
@@ -75,7 +75,7 @@ Add `portfolio_index` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:portfolio_index, "~> 0.1.1"}
+    {:portfolio_index, "~> 0.2.0"}
   ]
 end
 ```
@@ -230,19 +230,26 @@ config :boltx, Boltx,
 |---------|---------|----------|
 | `Neo4j` | Neo4j via boltx | Multi-graph isolation, Cypher queries |
 
-### Embedder
+### Embedders
+
+- **Gemini** - Google Gemini text-embedding-004
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
 | `Gemini` | Google | text-embedding-004 (768 dims) |
 | `OpenAI` | OpenAI | text-embedding-3-small/large (placeholder) |
 
-### LLM
+### LLMs
+
+- **Gemini** - gemini-2.5-flash with streaming
+- **Anthropic** - Claude via claude_agent_sdk
+- **OpenAI** - GPT/o1 via codex_sdk
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
 | `Gemini` | Google | gemini-2.5-flash |
-| `Anthropic` | Anthropic | claude-3-sonnet (placeholder) |
+| `Anthropic` | Anthropic | Claude (SDK default) |
+| `OpenAI` | OpenAI | GPT/o1 (SDK default) |
 
 ### Chunker
 
@@ -252,12 +259,17 @@ config :boltx, Boltx,
 
 ## RAG Strategies
 
+- **Hybrid** - Vector + keyword search with Reciprocal Rank Fusion
+- **SelfRAG** - Retrieval with self-critique and answer refinement
+- **GraphRAG** - Graph-aware retrieval
+- **Agentic** - Tool-based iterative retrieval
+
 | Strategy | Description |
 |----------|-------------|
 | `Hybrid` | Vector + keyword search with Reciprocal Rank Fusion |
 | `SelfRAG` | Retrieval with self-critique and answer refinement |
-| `Agentic` | Agentic retrieval (placeholder, delegates to Hybrid) |
-| `GraphRAG` | Graph-aware retrieval (placeholder, delegates to Hybrid) |
+| `Agentic` | Tool-based iterative retrieval |
+| `GraphRAG` | Graph-aware retrieval with vector fusion |
 
 ## Architecture
 

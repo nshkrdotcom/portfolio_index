@@ -23,8 +23,8 @@ defmodule PortfolioIndex.RAG.AdapterResolver do
 
   defp adapter_from_registry(port_name) do
     case Registry.get(port_name) do
-      {module, opts} -> {module, opts}
-      nil -> nil
+      {:ok, %{module: module, config: opts}} -> {module, opts}
+      {:error, :not_found} -> nil
     end
   end
 

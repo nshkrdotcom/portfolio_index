@@ -56,16 +56,35 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
 
     {embedder, embedder_opts} = AdapterResolver.resolve(context, :embedder, DefaultEmbedder)
 
-    {vector_store, _vector_opts} =
+    {vector_store, vector_opts} =
       AdapterResolver.resolve(context, :vector_store, DefaultVectorStore)
+
+    vector_opts = maybe_add_filter(vector_opts, filter)
+    keyword_opts = Keyword.put(vector_opts, :mode, :keyword)
 
     with {:ok, %{vector: query_vector, token_count: tokens}} <-
            embedder.embed(query, embedder_opts),
          {:ok, vector_results} <-
-           vector_store.search(index_id, query_vector, k * 2, filter: filter) do
-      # For now, we only have vector results
-      # In a full implementation, we'd also do keyword search and merge
-      merged = reciprocal_rank_fusion([{:vector, vector_results}], k: rrf_k)
+           vector_store.search(index_id, query_vector, k * 2, vector_opts) do
+      keyword_results =
+        case vector_store.search(index_id, query, k * 2, keyword_opts) do
+          {:ok, results} ->
+            results
+
+          {:error, reason} ->
+            Logger.info("Keyword search unavailable: #{inspect(reason)}")
+            []
+        end
+
+      merged =
+        reciprocal_rank_fusion(
+          [
+            {:vector, vector_results},
+            {:keyword, keyword_results}
+          ],
+          k: rrf_k
+        )
+
       final = Enum.take(merged, k)
 
       duration = System.monotonic_time(:millisecond) - start_time
@@ -144,14 +163,27 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
 
   defp format_results(results) do
     Enum.map(results, fn result ->
+      metadata = result[:metadata] || result.metadata || %{}
+
       %{
-        content: result[:metadata][:content] || result[:content] || "",
+        content:
+          result[:content] ||
+            metadata[:content] ||
+            metadata["content"] ||
+            "",
         score: result.score,
-        source: result[:metadata][:source] || result[:source] || "",
-        metadata: result[:metadata] || %{}
+        source:
+          metadata[:source] ||
+            metadata["source"] ||
+            result[:source] ||
+            "",
+        metadata: metadata
       }
     end)
   end
+
+  defp maybe_add_filter(vector_opts, nil), do: vector_opts
+  defp maybe_add_filter(vector_opts, filter), do: Keyword.put(vector_opts, :filter, filter)
 
   defp emit_telemetry(measurements, metadata) do
     :telemetry.execute(

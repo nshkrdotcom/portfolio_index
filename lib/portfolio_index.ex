@@ -12,7 +12,8 @@ defmodule PortfolioIndex do
   - Vector Stores: `PortfolioIndex.Adapters.VectorStore.Pgvector`
   - Graph Stores: `PortfolioIndex.Adapters.GraphStore.Neo4j`
   - Embedders: `PortfolioIndex.Adapters.Embedder.Gemini`
-  - LLMs: `PortfolioIndex.Adapters.LLM.Gemini`
+  - LLMs: `PortfolioIndex.Adapters.LLM.Gemini`, `PortfolioIndex.Adapters.LLM.Anthropic`,
+    `PortfolioIndex.Adapters.LLM.OpenAI`
   - Chunkers: `PortfolioIndex.Adapters.Chunker.Recursive`
   - Document Stores: `PortfolioIndex.Adapters.DocumentStore.Postgres`
 
@@ -25,6 +26,8 @@ defmodule PortfolioIndex do
 
   - `PortfolioIndex.RAG.Strategies.Hybrid` - Vector + keyword with RRF
   - `PortfolioIndex.RAG.Strategies.SelfRAG` - Self-critique and refinement
+  - `PortfolioIndex.RAG.Strategies.GraphRAG` - Graph-aware retrieval
+  - `PortfolioIndex.RAG.Strategies.Agentic` - Tool-based iterative retrieval
 
   ## Quick Start
 

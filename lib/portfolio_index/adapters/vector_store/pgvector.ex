@@ -156,6 +156,13 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
 
   @impl true
   def search(index_id, query_vector, k, opts) do
+    case Keyword.get(opts, :mode, :vector) do
+      :keyword -> keyword_search(index_id, query_vector, k, opts)
+      _ -> vector_search(index_id, query_vector, k, opts)
+    end
+  end
+
+  defp vector_search(index_id, query_vector, k, opts) do
     start_time = System.monotonic_time(:millisecond)
     table_name = table_name(index_id)
     pgvector = to_pgvector(query_vector)
@@ -223,6 +230,62 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
         {:error, reason}
     end
   end
+
+  defp keyword_search(index_id, query, k, opts) when is_binary(query) do
+    start_time = System.monotonic_time(:millisecond)
+    table_name = table_name(index_id)
+    include_vector = Keyword.get(opts, :include_vector, false)
+    filter = Keyword.get(opts, :filter, nil)
+    query_value = "%" <> query <> "%"
+
+    {where_clause, params} = build_filter_clause(filter, 2)
+
+    keyword_clause = "metadata->>'content' ILIKE $1"
+
+    where_clause =
+      if where_clause == "" do
+        " WHERE #{keyword_clause}"
+      else
+        "#{where_clause} AND #{keyword_clause}"
+      end
+
+    select_clause =
+      if include_vector do
+        "id, metadata, embedding, 1.0 as score"
+      else
+        "id, metadata, 1.0 as score"
+      end
+
+    final_params = [query_value] ++ params ++ [k]
+
+    sql = """
+    SELECT #{select_clause}
+    FROM #{table_name}
+    #{where_clause}
+    LIMIT $#{length(final_params)}
+    """
+
+    case Repo.query(sql, final_params) do
+      {:ok, %Postgrex.Result{rows: rows, columns: columns}} ->
+        results =
+          Enum.map(rows, fn row ->
+            parse_search_result(row, columns, include_vector)
+          end)
+
+        duration = System.monotonic_time(:millisecond) - start_time
+
+        emit_telemetry(:search, %{duration_ms: duration, k: k, results: length(results)}, %{
+          index_id: index_id
+        })
+
+        {:ok, results}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp keyword_search(_index_id, _query, _k, _opts), do: {:ok, []}
 
   @impl true
   def delete(index_id, id) do

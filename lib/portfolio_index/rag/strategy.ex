@@ -26,6 +26,8 @@ defmodule PortfolioIndex.RAG.Strategy do
 
   - `PortfolioIndex.RAG.Strategies.Hybrid` - Vector + keyword search with RRF
   - `PortfolioIndex.RAG.Strategies.SelfRAG` - Self-critique and refinement
+  - `PortfolioIndex.RAG.Strategies.GraphRAG` - Graph-aware retrieval
+  - `PortfolioIndex.RAG.Strategies.Agentic` - Tool-based iterative retrieval
   """
 
   @type query :: String.t()

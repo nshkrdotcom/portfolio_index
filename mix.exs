@@ -1,7 +1,7 @@
 defmodule PortfolioIndex.MixProject do
   use Mix.Project
 
-  @version "0.1.1"
+  @version "0.2.0"
   @source_url "https://github.com/nshkrdotcom/portfolio_index"
 
   def project do
@@ -44,7 +44,7 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      {:portfolio_core, "~> 0.1.1"},
+      {:portfolio_core, "~> 0.2.0"},
 
       # Database adapters
       {:ecto_sql, "~> 3.11"},
@@ -56,6 +56,8 @@ defmodule PortfolioIndex.MixProject do
 
       # AI/LLM
       {:gemini_ex, "~> 0.8.6"},
+      {:claude_agent_sdk, "~> 0.6.10"},
+      {:codex_sdk, "~> 0.4.3"},
 
       # HTTP clients for APIs
       {:req, "~> 0.4"},
