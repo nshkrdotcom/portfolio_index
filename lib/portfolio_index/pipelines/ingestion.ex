@@ -78,6 +78,38 @@ defmodule PortfolioIndex.Pipelines.Ingestion do
     )
   end
 
+  @doc """
+  Enqueue a single file for ingestion without starting a producer.
+
+  This is useful for ad-hoc indexing flows where files are already
+  discovered by the caller.
+  """
+  def enqueue(file, opts \\ []) do
+    context = %{
+      index_id: Keyword.get(opts, :index_id, "default"),
+      chunk_size: Keyword.get(opts, :chunk_size, 1000),
+      chunk_overlap: Keyword.get(opts, :chunk_overlap, 200)
+    }
+
+    case process_file(file, context) do
+      {:ok, chunks} ->
+        Enum.each(chunks, fn chunk ->
+          Embedding.enqueue(
+            Map.merge(chunk, %{
+              source: file.path,
+              source_type: file.type,
+              index_id: context.index_id
+            })
+          )
+        end)
+
+        {:ok, length(chunks)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   @impl true
   def handle_message(_processor, message, context) do
     start_time = System.monotonic_time(:millisecond)

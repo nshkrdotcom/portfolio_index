@@ -75,7 +75,7 @@ Add `portfolio_index` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:portfolio_index, "~> 0.1.0"}
+    {:portfolio_index, "~> 0.1.1"}
   ]
 end
 ```
@@ -235,12 +235,14 @@ config :boltx, Boltx,
 | Adapter | Provider | Model |
 |---------|----------|-------|
 | `Gemini` | Google | text-embedding-004 (768 dims) |
+| `OpenAI` | OpenAI | text-embedding-3-small/large (placeholder) |
 
 ### LLM
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
 | `Gemini` | Google | gemini-2.5-flash |
+| `Anthropic` | Anthropic | claude-3-sonnet (placeholder) |
 
 ### Chunker
 
@@ -254,6 +256,8 @@ config :boltx, Boltx,
 |----------|-------------|
 | `Hybrid` | Vector + keyword search with Reciprocal Rank Fusion |
 | `SelfRAG` | Retrieval with self-critique and answer refinement |
+| `Agentic` | Agentic retrieval (placeholder, delegates to Hybrid) |
+| `GraphRAG` | Graph-aware retrieval (placeholder, delegates to Hybrid) |
 
 ## Architecture
 
@@ -265,10 +269,12 @@ config :boltx, Boltx,
 │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐      │
 │  │ Vector Store  │ │ Graph Store   │ │   Embedder    │      │
 │  │ • Pgvector    │ │ • Neo4j       │ │ • Gemini      │      │
+│  │               │ │               │ │ • OpenAI      │      │
 │  └───────────────┘ └───────────────┘ └───────────────┘      │
 │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐      │
 │  │     LLM       │ │   Chunker     │ │ Document Store│      │
 │  │ • Gemini      │ │ • Recursive   │ │ • Postgres    │      │
+│  │ • Anthropic   │ │               │ │               │      │
 │  └───────────────┘ └───────────────┘ └───────────────┘      │
 ├─────────────────────────────────────────────────────────────┤
 │  Pipelines (Broadway)                                        │
@@ -281,6 +287,10 @@ config :boltx, Boltx,
 │  ┌────────────────────┐ ┌────────────────────┐              │
 │  │       Hybrid       │ │      Self-RAG      │              │
 │  │ Vector + RRF fusion│ │ Critique + Refine  │              │
+│  └────────────────────┘ └────────────────────┘              │
+│  ┌────────────────────┐ ┌────────────────────┐              │
+│  │      Agentic       │ │      GraphRAG      │              │
+│  │   (placeholder)    │ │   (placeholder)    │              │
 │  └────────────────────┘ └────────────────────┘              │
 └─────────────────────────────────────────────────────────────┘
                               │

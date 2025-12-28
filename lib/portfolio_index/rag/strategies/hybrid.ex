@@ -34,8 +34,9 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
     {:nowarn_function, emit_telemetry: 2}
   ]
 
-  alias PortfolioIndex.Adapters.Embedder.Gemini, as: Embedder
-  alias PortfolioIndex.Adapters.VectorStore.Pgvector, as: VectorStore
+  alias PortfolioIndex.Adapters.Embedder.Gemini, as: DefaultEmbedder
+  alias PortfolioIndex.Adapters.VectorStore.Pgvector, as: DefaultVectorStore
+  alias PortfolioIndex.RAG.AdapterResolver
 
   require Logger
 
@@ -53,9 +54,15 @@ defmodule PortfolioIndex.RAG.Strategies.Hybrid do
     index_id = context[:index_id] || "default"
     filter = context[:filters]
 
-    with {:ok, %{vector: query_vector, token_count: tokens}} <- Embedder.embed(query, []),
+    {embedder, embedder_opts} = AdapterResolver.resolve(context, :embedder, DefaultEmbedder)
+
+    {vector_store, _vector_opts} =
+      AdapterResolver.resolve(context, :vector_store, DefaultVectorStore)
+
+    with {:ok, %{vector: query_vector, token_count: tokens}} <-
+           embedder.embed(query, embedder_opts),
          {:ok, vector_results} <-
-           VectorStore.search(index_id, query_vector, k * 2, filter: filter) do
+           vector_store.search(index_id, query_vector, k * 2, filter: filter) do
       # For now, we only have vector results
       # In a full implementation, we'd also do keyword search and merge
       merged = reciprocal_rank_fusion([{:vector, vector_results}], k: rrf_k)

@@ -35,10 +35,38 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
     # Check if index already exists
     case check_index_exists(index_id) do
       {:ok, true} ->
-        {:error, :already_exists}
+        ensure_existing_index(index_id, config)
 
       {:ok, false} ->
         do_create_index(index_id, config)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp ensure_existing_index(index_id, config) do
+    table_name = table_name(index_id)
+    metric = normalize_metric(config[:metric] || :cosine)
+
+    with :ok <- validate_dimensions(index_id, config),
+         :ok <- create_vector_index(table_name, metric, config) do
+      register_index(index_id, config)
+    end
+  end
+
+  defp validate_dimensions(index_id, config) do
+    case get_index_config(index_id) do
+      {:ok, %{dimensions: dims}} ->
+        if dims == config.dimensions do
+          :ok
+        else
+          {:error,
+           {:dimension_mismatch, %{index_id: index_id, expected: config.dimensions, actual: dims}}}
+        end
+
+      {:error, :not_found} ->
+        :ok
 
       {:error, reason} ->
         {:error, reason}
@@ -315,7 +343,8 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
   end
 
   defp create_vector_index(table_name, metric, config) do
-    index_type = config[:index_type] || :ivfflat
+    metric = normalize_metric(metric)
+    index_type = normalize_index_type(config[:index_type] || :ivfflat)
     op_class = metric_to_op_class(metric)
     index_name = "#{table_name}_embedding_idx"
 
@@ -323,6 +352,34 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector do
     |> build_index_sql(table_name, index_name, op_class, config)
     |> execute_index_sql()
   end
+
+  defp normalize_index_type(value) when is_atom(value), do: value
+
+  defp normalize_index_type(value) when is_binary(value) do
+    case String.downcase(value) do
+      "ivfflat" -> :ivfflat
+      "hnsw" -> :hnsw
+      "flat" -> :flat
+      _ -> :ivfflat
+    end
+  end
+
+  defp normalize_index_type(_), do: :ivfflat
+
+  defp normalize_metric(value) when is_atom(value), do: value
+
+  defp normalize_metric(value) when is_binary(value) do
+    case String.downcase(value) do
+      "cosine" -> :cosine
+      "euclidean" -> :euclidean
+      "dot_product" -> :dot_product
+      "dot-product" -> :dot_product
+      "dotproduct" -> :dot_product
+      _ -> :cosine
+    end
+  end
+
+  defp normalize_metric(_), do: :cosine
 
   defp build_index_sql(:ivfflat, table_name, index_name, op_class, config) do
     lists = get_in(config, [:options, :lists]) || 100

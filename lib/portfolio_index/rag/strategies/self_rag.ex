@@ -29,7 +29,8 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
   # Suppress dialyzer warnings for adapter calls that may not be fully typed
   @dialyzer {:nowarn_function, retrieve: 3}
 
-  alias PortfolioIndex.Adapters.LLM.Gemini, as: LLM
+  alias PortfolioIndex.Adapters.LLM.Gemini, as: DefaultLLM
+  alias PortfolioIndex.RAG.AdapterResolver
   alias PortfolioIndex.RAG.Strategies.Hybrid
 
   require Logger
@@ -46,11 +47,14 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
     _k = Keyword.get(opts, :k, 5)
     min_critique = Keyword.get(opts, :min_critique_score, 3)
 
-    with {:ok, needs_retrieval} <- assess_retrieval_need(query),
+    {llm, llm_opts} = AdapterResolver.resolve(context, :llm, DefaultLLM)
+
+    with {:ok, needs_retrieval} <- assess_retrieval_need(query, llm, llm_opts),
          {:ok, retrieved} <- maybe_retrieve(query, context, opts, needs_retrieval),
-         {:ok, answer, critique, tokens1} <- generate_with_critique(query, retrieved),
+         {:ok, answer, critique, tokens1} <-
+           generate_with_critique(query, retrieved, llm, llm_opts),
          {:ok, final_answer, tokens2} <-
-           maybe_refine(query, answer, critique, retrieved, min_critique) do
+           maybe_refine(query, answer, critique, retrieved, min_critique, llm, llm_opts) do
       duration = System.monotonic_time(:millisecond) - start_time
       total_tokens = tokens1 + tokens2
 
@@ -83,7 +87,7 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
 
   # Private functions
 
-  defp assess_retrieval_need(query) do
+  defp assess_retrieval_need(query, llm, llm_opts) do
     messages = [
       %{
         role: :system,
@@ -100,7 +104,7 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
       %{role: :user, content: query}
     ]
 
-    case LLM.complete(messages, max_tokens: 10) do
+    case llm.complete(messages, Keyword.merge(llm_opts, max_tokens: 10)) do
       {:ok, %{content: response}} ->
         needs = String.contains?(String.upcase(response), "YES")
         {:ok, needs}
@@ -119,7 +123,7 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
     {:ok, %{items: [], query: "", timing_ms: 0, tokens_used: 0}}
   end
 
-  defp generate_with_critique(query, retrieved) do
+  defp generate_with_critique(query, retrieved, llm, llm_opts) do
     context_text = Enum.map_join(retrieved.items, "\n\n---\n\n", & &1.content)
 
     messages = [
@@ -153,7 +157,7 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
       }
     ]
 
-    case LLM.complete(messages, max_tokens: 2000) do
+    case llm.complete(messages, Keyword.merge(llm_opts, max_tokens: 2000)) do
       {:ok, %{content: response, usage: usage}} ->
         {answer, critique} = parse_critique(response)
         tokens = (usage[:input_tokens] || 0) + (usage[:output_tokens] || 0)
@@ -193,17 +197,17 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
     end
   end
 
-  defp maybe_refine(query, answer, critique, retrieved, min_score) do
+  defp maybe_refine(query, answer, critique, retrieved, min_score, llm, llm_opts) do
     min_critique = Enum.min([critique.relevance, critique.support, critique.completeness])
 
     if min_critique < min_score do
-      refine_answer(query, answer, critique, retrieved)
+      refine_answer(query, answer, critique, retrieved, llm, llm_opts)
     else
       {:ok, answer, 0}
     end
   end
 
-  defp refine_answer(query, previous_answer, critique, retrieved) do
+  defp refine_answer(query, previous_answer, critique, retrieved, llm, llm_opts) do
     context_text = Enum.map_join(retrieved.items, "\n\n---\n\n", & &1.content)
 
     messages = [
@@ -236,7 +240,7 @@ defmodule PortfolioIndex.RAG.Strategies.SelfRAG do
       }
     ]
 
-    case LLM.complete(messages, max_tokens: 2000) do
+    case llm.complete(messages, Keyword.merge(llm_opts, max_tokens: 2000)) do
       {:ok, %{content: response, usage: usage}} ->
         tokens = (usage[:input_tokens] || 0) + (usage[:output_tokens] || 0)
         {:ok, response, tokens}
