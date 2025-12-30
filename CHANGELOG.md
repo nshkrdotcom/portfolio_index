@@ -21,6 +21,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Character, byte, word, or custom tokenizer-based sizing
   - Defaults to `String.length/1` for backwards compatibility
 
+#### Token Utilities
+- **Tokens module** - Centralized token estimation utilities
+  - `Tokens.estimate/2` - Estimate token count from text (~4 chars/token heuristic)
+  - `Tokens.sizer/1` - Get sizing function for token-based chunking
+  - `Tokens.to_chars/2` - Convert token count to character count
+  - `Tokens.from_chars/2` - Convert character count to token count
+  - `Tokens.default_ratio/0` - Returns the default chars-per-token ratio (4)
+
+#### Chunker Config Enhancement
+- **`size_unit` option** - Specify `:characters` or `:tokens` for chunk sizing
+  - `:tokens` auto-configures `get_chunk_size` with token estimation
+  - `:characters` (default) uses `String.length/1`
+  - Implements `PortfolioCore.Ports.Chunker` port specification for `size_unit`
+
+#### Chunker Output Enhancement
+- **`token_count` in metadata** - All chunkers now include estimated token count
+  - Useful for LLM context window budgeting
+  - Approximately `char_count / 4`
+  - Included in: Recursive, Character, Paragraph, Sentence, Semantic chunkers
+
 ### Changed
 
 - All chunker adapters now support `:get_chunk_size` option for custom size measurement

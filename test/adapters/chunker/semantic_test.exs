@@ -247,4 +247,34 @@ defmodule PortfolioIndex.Adapters.Chunker.SemanticTest do
     vec = for i <- 1..768, do: :math.sin(hash * i) / 2 + 0.5
     {:ok, %{vector: vec}}
   end
+
+  describe "token_count in metadata" do
+    test "includes token_count in chunk metadata" do
+      {:ok, chunks} =
+        Semantic.chunk("This is a test sentence for chunking.", :semantic, %{
+          chunk_size: 1000,
+          embedding_fn: &mock_embedding/1
+        })
+
+      assert chunks != []
+      chunk = hd(chunks)
+      assert Map.has_key?(chunk.metadata, :token_count)
+      assert is_integer(chunk.metadata.token_count)
+      assert chunk.metadata.token_count > 0
+    end
+
+    test "token_count is approximately char_count / 4" do
+      # 100 chars
+      text = String.duplicate("abcd", 25)
+
+      {:ok, [chunk]} =
+        Semantic.chunk(text, :semantic, %{
+          chunk_size: 1000,
+          embedding_fn: &mock_embedding/1
+        })
+
+      assert chunk.metadata.char_count == 100
+      assert chunk.metadata.token_count == 25
+    end
+  end
 end

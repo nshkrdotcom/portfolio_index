@@ -46,6 +46,8 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
 
   @behaviour PortfolioCore.Ports.Chunker
 
+  alias PortfolioIndex.Adapters.Chunker.Tokens
+
   require Logger
 
   @default_threshold 0.75
@@ -286,6 +288,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
           metadata: %{
             strategy: :semantic,
             char_count: String.length(content),
+            token_count: Tokens.estimate(content),
             sentence_count: length(sentences)
           }
         }
@@ -333,6 +336,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
       metadata: %{
         strategy: :semantic,
         char_count: String.length(text),
+        token_count: Tokens.estimate(text),
         sentence_count: count_sentences(text)
       }
     }
@@ -378,6 +382,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
         metadata: %{
           strategy: :semantic,
           char_count: String.length(content),
+          token_count: Tokens.estimate(content),
           sentence_count: length(sentences),
           fallback: true
         }

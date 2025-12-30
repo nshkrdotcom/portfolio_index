@@ -153,4 +153,26 @@ defmodule PortfolioIndex.Adapters.Chunker.SentenceTest do
       assert estimate >= 1
     end
   end
+
+  describe "token_count in metadata" do
+    test "includes token_count in chunk metadata" do
+      {:ok, chunks} =
+        Sentence.chunk("This is a test sentence for chunking.", :plain, %{chunk_size: 1000})
+
+      assert chunks != []
+      chunk = hd(chunks)
+      assert Map.has_key?(chunk.metadata, :token_count)
+      assert is_integer(chunk.metadata.token_count)
+      assert chunk.metadata.token_count > 0
+    end
+
+    test "token_count is approximately char_count / 4" do
+      # 100 chars
+      text = String.duplicate("abcd", 25)
+      {:ok, [chunk]} = Sentence.chunk(text, :plain, %{chunk_size: 1000})
+
+      assert chunk.metadata.char_count == 100
+      assert chunk.metadata.token_count == 25
+    end
+  end
 end

@@ -65,7 +65,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Recursive do
 
   @behaviour PortfolioCore.Ports.Chunker
 
-  alias PortfolioIndex.Adapters.Chunker.Separators
+  alias PortfolioIndex.Adapters.Chunker.{Separators, Tokens}
 
   @default_chunk_size 1000
   @default_chunk_overlap 200
@@ -96,6 +96,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Recursive do
           metadata: %{
             format: format,
             char_count: String.length(content),
+            token_count: Tokens.estimate(content),
             separator_used: find_separator_used(content, separators)
           }
         }

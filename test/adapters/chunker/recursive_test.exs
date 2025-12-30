@@ -443,4 +443,38 @@ defmodule PortfolioIndex.Adapters.Chunker.RecursiveTest do
       refute Enum.empty?(chunks)
     end
   end
+
+  describe "token_count in metadata" do
+    test "includes token_count in chunk metadata" do
+      {:ok, chunks} =
+        Recursive.chunk("This is a test sentence for chunking.", :plain, %{chunk_size: 1000})
+
+      assert chunks != []
+      chunk = hd(chunks)
+      assert Map.has_key?(chunk.metadata, :token_count)
+      assert is_integer(chunk.metadata.token_count)
+      assert chunk.metadata.token_count > 0
+    end
+
+    test "token_count is approximately char_count / 4" do
+      # 100 chars
+      text = String.duplicate("abcd", 25)
+      {:ok, [chunk]} = Recursive.chunk(text, :plain, %{chunk_size: 1000})
+
+      assert chunk.metadata.char_count == 100
+      assert chunk.metadata.token_count == 25
+    end
+
+    test "token_count is included in all chunks" do
+      # 1000 chars
+      text = String.duplicate("word ", 200)
+      {:ok, chunks} = Recursive.chunk(text, :plain, %{chunk_size: 100, chunk_overlap: 20})
+
+      assert length(chunks) > 1
+
+      assert Enum.all?(chunks, fn c ->
+               is_integer(c.metadata.token_count) and c.metadata.token_count > 0
+             end)
+    end
+  end
 end

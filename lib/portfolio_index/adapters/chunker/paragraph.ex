@@ -34,6 +34,8 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
 
   @behaviour PortfolioCore.Ports.Chunker
 
+  alias PortfolioIndex.Adapters.Chunker.Tokens
+
   @default_chunk_size 1000
   @default_chunk_overlap 200
   @default_min_paragraph_size 50
@@ -73,6 +75,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
             metadata: %{
               strategy: :paragraph,
               char_count: String.length(content),
+              token_count: Tokens.estimate(content),
               paragraph_count: count_paragraphs(content)
             }
           }

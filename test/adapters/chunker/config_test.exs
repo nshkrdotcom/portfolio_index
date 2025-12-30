@@ -181,4 +181,46 @@ defmodule PortfolioIndex.Adapters.Chunker.ConfigTest do
       assert Map.get(config, :chunk_size) == 500
     end
   end
+
+  describe "size_unit option" do
+    test "defaults to :characters" do
+      {:ok, config} = Config.validate(%{})
+      assert config.size_unit == :characters
+    end
+
+    test ":characters uses String.length/1 by default" do
+      {:ok, config} = Config.validate(%{size_unit: :characters})
+      assert config.get_chunk_size.("test") == 4
+    end
+
+    test ":tokens auto-sets Tokens.sizer()" do
+      {:ok, config} = Config.validate(%{size_unit: :tokens})
+      # 8 chars / 4 = 2 tokens
+      assert config.get_chunk_size.("12345678") == 2
+    end
+
+    test "explicit get_chunk_size overrides size_unit default" do
+      custom_fn = fn _ -> 42 end
+      {:ok, config} = Config.validate(%{size_unit: :tokens, get_chunk_size: custom_fn})
+      assert config.get_chunk_size.("anything") == 42
+    end
+
+    test "rejects invalid size_unit" do
+      {:error, message} = Config.validate(%{size_unit: :words})
+      assert message =~ "invalid value"
+    end
+
+    test "size_unit :tokens affects chunker sizing behavior" do
+      # When size_unit is :tokens, the get_chunk_size should return token estimates
+      {:ok, config} = Config.validate(%{size_unit: :tokens, chunk_size: 100})
+
+      # 400 chars should be ~100 tokens
+      text = String.duplicate("a", 400)
+      assert config.get_chunk_size.(text) == 100
+    end
+
+    test "default_size_unit/0 returns :characters" do
+      assert Config.default_size_unit() == :characters
+    end
+  end
 end

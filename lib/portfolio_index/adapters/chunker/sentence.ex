@@ -20,6 +20,8 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
 
   @behaviour PortfolioCore.Ports.Chunker
 
+  alias PortfolioIndex.Adapters.Chunker.Tokens
+
   @default_chunk_size 1000
   @default_chunk_overlap 200
 
@@ -56,6 +58,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
             metadata: %{
               strategy: :sentence,
               char_count: String.length(content),
+              token_count: Tokens.estimate(content),
               sentence_count: sentence_count
             }
           }

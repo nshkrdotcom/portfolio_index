@@ -35,6 +35,8 @@ defmodule PortfolioIndex.Adapters.Chunker.Character do
 
   @behaviour PortfolioCore.Ports.Chunker
 
+  alias PortfolioIndex.Adapters.Chunker.Tokens
+
   @default_chunk_size 1000
   @default_chunk_overlap 200
 
@@ -69,7 +71,8 @@ defmodule PortfolioIndex.Adapters.Chunker.Character do
             metadata: %{
               strategy: :character,
               boundary: boundary,
-              char_count: String.length(content)
+              char_count: String.length(content),
+              token_count: Tokens.estimate(content)
             }
           }
         end)
