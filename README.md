@@ -75,7 +75,7 @@ Add `portfolio_index` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:portfolio_index, "~> 0.2.0"}
+    {:portfolio_index, "~> 0.3.1"}
   ]
 end
 ```
@@ -255,7 +255,40 @@ config :boltx, Boltx,
 
 | Adapter | Strategy | Features |
 |---------|----------|----------|
-| `Recursive` | Recursive text splitting | Format-aware (markdown, code, plain) |
+| `Recursive` | Recursive text splitting | Format-aware for 17+ languages |
+| `Character` | Character-based | Boundary modes: word, sentence, none |
+| `Sentence` | Sentence-based | NLP tokenization, abbreviation handling |
+| `Paragraph` | Paragraph-based | Intelligent merge/split at boundaries |
+| `Semantic` | Embedding similarity | Groups by semantic coherence |
+
+#### Supported Formats
+
+| Category | Formats |
+|----------|---------|
+| Languages | Elixir, Ruby, PHP, Python, JavaScript, TypeScript, Vue |
+| Markup | Markdown, HTML, LaTeX |
+| Documents | doc, docx, epub, odt, pdf, rtf |
+
+#### Token-Based Chunking
+
+All chunkers support custom size measurement via `:get_chunk_size`:
+
+```elixir
+# Character-based (default)
+Recursive.chunk(text, :elixir, %{chunk_size: 1000})
+
+# Token-based (for LLM context limits)
+Recursive.chunk(text, :elixir, %{
+  chunk_size: 256,
+  get_chunk_size: &MyTokenizer.count_tokens/1
+})
+
+# Byte-based (for storage limits)
+Recursive.chunk(text, :plain, %{
+  chunk_size: 4096,
+  get_chunk_size: &byte_size/1
+})
+```
 
 ## RAG Strategies
 

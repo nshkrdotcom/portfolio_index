@@ -1,7 +1,7 @@
 defmodule PortfolioIndex.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.3.1"
   @source_url "https://github.com/nshkrdotcom/portfolio_index"
 
   def project do
@@ -44,7 +44,8 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      {:portfolio_core, "~> 0.3.0"},
+      # {:portfolio_core, "~> 0.3.0"},
+      {:portfolio_core, path: "../portfolio_core"},
 
       # Database adapters
       {:ecto_sql, "~> 3.11"},
@@ -55,9 +56,9 @@ defmodule PortfolioIndex.MixProject do
       {:boltx, "~> 0.0.6"},
 
       # AI/LLM
-      {:gemini_ex, "~> 0.8.6"},
-      {:claude_agent_sdk, "~> 0.6.10"},
-      {:codex_sdk, "~> 0.4.3"},
+      {:gemini_ex, "~> 0.8.8"},
+      {:claude_agent_sdk, "~> 0.7.2"},
+      {:codex_sdk, "~> 0.4.4"},
 
       # HTTP clients for APIs
       {:req, "~> 0.4"},
@@ -77,6 +78,9 @@ defmodule PortfolioIndex.MixProject do
 
       # JSON
       {:jason, "~> 1.4"},
+
+      # Configuration validation
+      {:nimble_options, "~> 1.1"},
 
       # Dev/test only
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},

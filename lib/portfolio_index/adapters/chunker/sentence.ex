@@ -31,13 +31,16 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
   def chunk(text, _format, config) do
     chunk_size = config[:chunk_size] || @default_chunk_size
     chunk_overlap = config[:chunk_overlap] || @default_chunk_overlap
+    get_chunk_size = config[:get_chunk_size] || (&String.length/1)
 
     if String.trim(text) == "" do
       {:ok, []}
     else
       sentences = split_into_sentences(text)
       sentences_with_positions = calculate_sentence_positions(text, sentences)
-      chunks = group_sentences(sentences_with_positions, chunk_size, chunk_overlap)
+
+      chunks =
+        group_sentences(sentences_with_positions, chunk_size, chunk_overlap, get_chunk_size)
 
       result =
         chunks
@@ -66,13 +69,15 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
   @spec estimate_chunks(String.t(), map()) :: non_neg_integer()
   def estimate_chunks(text, config) do
     chunk_size = config[:chunk_size] || @default_chunk_size
+    get_chunk_size = config[:get_chunk_size] || (&String.length/1)
 
     sentence_count = count_sentences(text)
+    text_size = get_chunk_size.(text)
 
-    avg_sentence_length =
-      if sentence_count > 0, do: div(String.length(text), sentence_count), else: 50
+    avg_sentence_size =
+      if sentence_count > 0, do: div(text_size, sentence_count), else: 50
 
-    sentences_per_chunk = max(div(chunk_size, avg_sentence_length), 1)
+    sentences_per_chunk = max(div(chunk_size, avg_sentence_size), 1)
     div(sentence_count, sentences_per_chunk) + 1
   end
 
@@ -147,39 +152,40 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
   @spec group_sentences(
           [{String.t(), non_neg_integer(), non_neg_integer()}],
           pos_integer(),
-          non_neg_integer()
+          non_neg_integer(),
+          function()
         ) ::
           [{String.t(), non_neg_integer(), non_neg_integer(), non_neg_integer()}]
-  defp group_sentences(sentences, chunk_size, overlap) do
-    {chunks, current_sentences, _current_len, current_start} =
+  defp group_sentences(sentences, chunk_size, overlap, get_chunk_size) do
+    {chunks, current_sentences, _current_size, current_start} =
       Enum.reduce(sentences, {[], [], 0, 0}, fn {sentence, start_byte, end_byte},
-                                                {chunks, current_sentences, current_len,
+                                                {chunks, current_sentences, current_size,
                                                  current_start} ->
-        sentence_len = String.length(sentence)
-        separator_len = if current_sentences == [], do: 0, else: 1
+        sentence_size = get_chunk_size.(sentence)
+        separator_size = if current_sentences == [], do: 0, else: get_chunk_size.(" ")
 
         cond do
           # Current is empty, start with this sentence
           current_sentences == [] ->
-            {chunks, [{sentence, start_byte, end_byte}], sentence_len, start_byte}
+            {chunks, [{sentence, start_byte, end_byte}], sentence_size, start_byte}
 
           # Adding would exceed chunk size
-          current_len + separator_len + sentence_len > chunk_size ->
+          current_size + separator_size + sentence_size > chunk_size ->
             # Finalize current chunk
             chunk = finalize_chunk(current_sentences, current_start)
             # Get overlap sentences
-            overlap_sentences = get_overlap_sentences(current_sentences, overlap)
+            overlap_sentences = get_overlap_sentences(current_sentences, overlap, get_chunk_size)
 
             overlap_start =
               if overlap_sentences == [], do: start_byte, else: elem(hd(overlap_sentences), 1)
 
-            overlap_len =
-              overlap_sentences |> Enum.map(fn {s, _, _} -> String.length(s) end) |> Enum.sum()
+            overlap_size =
+              overlap_sentences |> Enum.map(fn {s, _, _} -> get_chunk_size.(s) end) |> Enum.sum()
 
             {
               [chunk | chunks],
               overlap_sentences ++ [{sentence, start_byte, end_byte}],
-              overlap_len + sentence_len + length(overlap_sentences),
+              overlap_size + sentence_size + length(overlap_sentences),
               overlap_start
             }
 
@@ -188,7 +194,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
             {
               chunks,
               current_sentences ++ [{sentence, start_byte, end_byte}],
-              current_len + separator_len + sentence_len,
+              current_size + separator_size + sentence_size,
               current_start
             }
         end
@@ -215,30 +221,46 @@ defmodule PortfolioIndex.Adapters.Chunker.Sentence do
 
   @spec get_overlap_sentences(
           [{String.t(), non_neg_integer(), non_neg_integer()}],
-          non_neg_integer()
+          non_neg_integer(),
+          function()
         ) ::
           [{String.t(), non_neg_integer(), non_neg_integer()}]
-  defp get_overlap_sentences(_sentences, overlap) when overlap <= 0, do: []
+  defp get_overlap_sentences(_sentences, overlap, _get_chunk_size) when overlap <= 0, do: []
 
-  defp get_overlap_sentences(sentences, overlap) do
+  defp get_overlap_sentences(sentences, overlap, get_chunk_size) do
     sentences
     |> Enum.reverse()
-    |> take_sentences_for_overlap(overlap, [])
+    |> take_sentences_for_overlap(overlap, [], get_chunk_size)
   end
 
   @type sentence_tuple :: {String.t(), non_neg_integer(), non_neg_integer()}
 
-  @spec take_sentences_for_overlap([sentence_tuple()], non_neg_integer(), [sentence_tuple()]) ::
+  @spec take_sentences_for_overlap(
+          [sentence_tuple()],
+          non_neg_integer(),
+          [sentence_tuple()],
+          function()
+        ) ::
           [sentence_tuple()]
-  defp take_sentences_for_overlap([], _remaining, acc), do: acc
+  defp take_sentences_for_overlap([], _remaining, acc, _get_chunk_size), do: acc
 
-  defp take_sentences_for_overlap([{sentence, start, ending} | rest], remaining, acc) do
-    sentence_len = String.length(sentence)
+  defp take_sentences_for_overlap(
+         [{sentence, start, ending} | rest],
+         remaining,
+         acc,
+         get_chunk_size
+       ) do
+    sentence_size = get_chunk_size.(sentence)
 
-    if sentence_len <= remaining do
-      take_sentences_for_overlap(rest, remaining - sentence_len - 1, [
-        {sentence, start, ending} | acc
-      ])
+    if sentence_size <= remaining do
+      take_sentences_for_overlap(
+        rest,
+        remaining - sentence_size - 1,
+        [
+          {sentence, start, ending} | acc
+        ],
+        get_chunk_size
+      )
     else
       acc
     end

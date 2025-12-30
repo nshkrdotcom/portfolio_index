@@ -165,6 +165,61 @@ defmodule PortfolioIndex.Adapters.Chunker.SemanticTest do
     end
   end
 
+  describe "get_chunk_size option" do
+    test "uses custom get_chunk_size function" do
+      text = "First sentence here. Second sentence here. Third sentence here."
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      config = %{
+        max_chars: 8,
+        min_sentences: 1,
+        embedding_fn: &mock_embedding/1,
+        get_chunk_size: word_counter
+      }
+
+      {:ok, chunks} = Semantic.chunk(text, :semantic, config)
+      # Should split based on word count
+      refute Enum.empty?(chunks)
+    end
+
+    test "estimate_chunks uses get_chunk_size" do
+      text = "One word. Two words. Three words. Four words. Five words."
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      # With word count, text has 10 words
+      estimate = Semantic.estimate_chunks(text, %{max_chars: 4, get_chunk_size: word_counter})
+
+      assert estimate >= 1
+    end
+
+    test "fallback chunking uses get_chunk_size" do
+      text = "First sentence. Second sentence. Third sentence."
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      config = %{
+        max_chars: 4,
+        embedding_fn: fn _text -> {:error, :api_error} end,
+        get_chunk_size: word_counter
+      }
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, chunks} = Semantic.chunk(text, :semantic, config)
+
+        # Should fall back to word-based chunking
+        refute Enum.empty?(chunks)
+      end)
+    end
+  end
+
   # Mock embedding function - returns deterministic embedding based on text hash
   defp mock_embedding(text) do
     hash = :erlang.phash2(text)

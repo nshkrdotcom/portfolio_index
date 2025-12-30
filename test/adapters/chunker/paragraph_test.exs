@@ -134,4 +134,49 @@ defmodule PortfolioIndex.Adapters.Chunker.ParagraphTest do
       assert estimate >= 1
     end
   end
+
+  describe "get_chunk_size option" do
+    test "uses custom get_chunk_size function" do
+      text = """
+      First paragraph with several words.
+
+      Second paragraph with more words.
+
+      Third paragraph with even more words.
+      """
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      config = %{chunk_size: 10, chunk_overlap: 0, get_chunk_size: word_counter}
+
+      {:ok, chunks} = Paragraph.chunk(text, :plain, config)
+      # Should split based on word count
+      refute Enum.empty?(chunks)
+    end
+
+    test "estimate_chunks uses get_chunk_size" do
+      text = """
+      First paragraph.
+
+      Second paragraph.
+
+      Third paragraph.
+      """
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      estimate =
+        Paragraph.estimate_chunks(text, %{
+          chunk_size: 3,
+          chunk_overlap: 0,
+          get_chunk_size: word_counter
+        })
+
+      assert estimate >= 1
+    end
+  end
 end

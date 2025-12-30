@@ -28,3 +28,5 @@ portfolio_index-*.tar
 # PLT files
 /priv/plts/
 /broadway/
+/text_chunker_ex/
+/arcana/

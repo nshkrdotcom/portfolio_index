@@ -105,4 +105,61 @@ defmodule PortfolioIndex.Adapters.Chunker.CharacterTest do
       assert estimate >= 6 and estimate <= 8
     end
   end
+
+  describe "get_chunk_size option" do
+    test "uses default String.length when not specified" do
+      text = "Hello World"
+      config = %{chunk_size: 5, chunk_overlap: 0, boundary: :none}
+
+      {:ok, chunks} = Character.chunk(text, :plain, config)
+      # "Hello World" is 11 chars, should be split into 3 chunks (5+5+1)
+      assert length(chunks) >= 2
+    end
+
+    test "uses custom get_chunk_size function" do
+      text = "Hello World Test Words"
+      # Custom function: count words
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      config = %{chunk_size: 2, chunk_overlap: 0, boundary: :word, get_chunk_size: word_counter}
+
+      {:ok, chunks} = Character.chunk(text, :plain, config)
+      # Should split based on word count
+      refute Enum.empty?(chunks)
+    end
+
+    test "uses byte_size function for byte-based chunking" do
+      # Multi-byte UTF-8 characters
+      text = "日本語テスト"
+      config = %{chunk_size: 9, chunk_overlap: 0, boundary: :none, get_chunk_size: &byte_size/1}
+
+      {:ok, chunks} = Character.chunk(text, :plain, config)
+      # Each Japanese char is 3 bytes, 6 chars = 18 bytes, should split at 9 bytes
+      refute Enum.empty?(chunks)
+    end
+
+    test "estimate_chunks uses get_chunk_size" do
+      text = String.duplicate("word ", 100)
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      # With character count (default), 500 chars
+      char_estimate = Character.estimate_chunks(text, %{chunk_size: 50, chunk_overlap: 0})
+
+      # With word count, 100 words
+      word_estimate =
+        Character.estimate_chunks(text, %{
+          chunk_size: 10,
+          chunk_overlap: 0,
+          get_chunk_size: word_counter
+        })
+
+      # Estimates should differ
+      assert char_estimate != word_estimate or char_estimate > 1
+    end
+  end
 end

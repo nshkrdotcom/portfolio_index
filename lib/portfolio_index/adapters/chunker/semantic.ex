@@ -32,6 +32,16 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
   - `:max_chars` - Maximum characters per chunk (default: 1000)
   - `:min_sentences` - Minimum sentences per chunk (default: 2)
   - `:embedding_fn` - Function to generate embeddings (required)
+  - `:get_chunk_size` - Function to measure size (default: `&String.length/1`)
+
+  ## Token-Based Chunking
+
+      config = %{
+        max_chars: 256,
+        embedding_fn: &my_embedding_fn/1,
+        get_chunk_size: &MyTokenizer.count_tokens/1
+      }
+      {:ok, chunks} = Semantic.chunk(text, :semantic, config)
   """
 
   @behaviour PortfolioCore.Ports.Chunker
@@ -49,6 +59,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
     max_chars = config[:max_chars] || @default_max_chars
     min_sentences = config[:min_sentences] || @default_min_sentences
     embedding_fn = config[:embedding_fn]
+    get_chunk_size = config[:get_chunk_size] || (&String.length/1)
 
     cond do
       String.trim(text) == "" ->
@@ -58,7 +69,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
         {:error, :no_embedding_fn}
 
       true ->
-        do_semantic_chunk(text, threshold, max_chars, min_sentences, embedding_fn)
+        do_semantic_chunk(text, threshold, max_chars, min_sentences, embedding_fn, get_chunk_size)
     end
   end
 
@@ -66,22 +77,30 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
   @spec estimate_chunks(String.t(), map()) :: non_neg_integer()
   def estimate_chunks(text, config) do
     max_chars = config[:max_chars] || @default_max_chars
+    get_chunk_size = config[:get_chunk_size] || (&String.length/1)
 
-    # Estimate based on text length and max_chars
-    text_length = String.length(text)
+    # Estimate based on text size and max_chars
+    text_size = get_chunk_size.(text)
 
-    if text_length <= max_chars do
+    if text_size <= max_chars do
       1
     else
-      div(text_length, max_chars) + 1
+      div(text_size, max_chars) + 1
     end
   end
 
   # Private functions
 
-  @spec do_semantic_chunk(String.t(), float(), pos_integer(), pos_integer(), function()) ::
+  @spec do_semantic_chunk(
+          String.t(),
+          float(),
+          pos_integer(),
+          pos_integer(),
+          function(),
+          function()
+        ) ::
           {:ok, [map()]} | {:error, term()}
-  defp do_semantic_chunk(text, threshold, max_chars, min_sentences, embedding_fn) do
+  defp do_semantic_chunk(text, threshold, max_chars, min_sentences, embedding_fn, get_chunk_size) do
     sentences = split_into_sentences(text)
 
     if length(sentences) <= min_sentences do
@@ -90,7 +109,16 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
     else
       case generate_embeddings(sentences, embedding_fn) do
         {:ok, embeddings} ->
-          chunks = group_by_similarity(sentences, embeddings, threshold, max_chars, min_sentences)
+          chunks =
+            group_by_similarity(
+              sentences,
+              embeddings,
+              threshold,
+              max_chars,
+              min_sentences,
+              get_chunk_size
+            )
+
           positioned_chunks = add_positions(text, chunks)
           {:ok, positioned_chunks}
 
@@ -100,7 +128,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
           )
 
           # Fallback to simple size-based chunking
-          {:ok, fallback_chunk(text, max_chars)}
+          {:ok, fallback_chunk(text, max_chars, get_chunk_size)}
       end
     end
   end
@@ -141,10 +169,24 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
     end
   end
 
-  @spec group_by_similarity([String.t()], [[float()]], float(), pos_integer(), pos_integer()) :: [
+  @spec group_by_similarity(
+          [String.t()],
+          [[float()]],
+          float(),
+          pos_integer(),
+          pos_integer(),
+          function()
+        ) :: [
           [String.t()]
         ]
-  defp group_by_similarity(sentences, embeddings, threshold, max_chars, min_sentences) do
+  defp group_by_similarity(
+         sentences,
+         embeddings,
+         threshold,
+         max_chars,
+         min_sentences,
+         get_chunk_size
+       ) do
     sentences_with_embeddings = Enum.zip(sentences, embeddings)
 
     {groups, current_group, _final_len} =
@@ -152,16 +194,16 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
       |> Enum.with_index()
       |> Enum.reduce({[], [], 0}, fn {{sentence, embedding}, _idx},
                                      {groups, current_group, current_len} ->
-        sentence_len = String.length(sentence)
+        sentence_size = get_chunk_size.(sentence)
 
         cond do
           # First sentence
           current_group == [] ->
-            {groups, [{sentence, embedding}], sentence_len}
+            {groups, [{sentence, embedding}], sentence_size}
 
           # Would exceed max_chars
-          current_len + sentence_len + 1 > max_chars and length(current_group) >= min_sentences ->
-            {[extract_sentences(current_group) | groups], [{sentence, embedding}], sentence_len}
+          current_len + sentence_size + 1 > max_chars and length(current_group) >= min_sentences ->
+            {[extract_sentences(current_group) | groups], [{sentence, embedding}], sentence_size}
 
           # Check similarity with previous sentence
           true ->
@@ -170,10 +212,11 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
 
             if similarity < threshold and length(current_group) >= min_sentences do
               # Low similarity, start new group
-              {[extract_sentences(current_group) | groups], [{sentence, embedding}], sentence_len}
+              {[extract_sentences(current_group) | groups], [{sentence, embedding}],
+               sentence_size}
             else
               # High similarity or min_sentences not reached, continue group
-              {groups, current_group ++ [{sentence, embedding}], current_len + sentence_len + 1}
+              {groups, current_group ++ [{sentence, embedding}], current_len + sentence_size + 1}
             end
         end
       end)
@@ -295,20 +338,20 @@ defmodule PortfolioIndex.Adapters.Chunker.Semantic do
     }
   end
 
-  @spec fallback_chunk(String.t(), pos_integer()) :: [map()]
-  defp fallback_chunk(text, max_chars) do
+  @spec fallback_chunk(String.t(), pos_integer(), function()) :: [map()]
+  defp fallback_chunk(text, max_chars, get_chunk_size) do
     # Simple fallback: split by size at sentence boundaries
     sentences = split_into_sentences(text)
 
     {groups, current, _current_len} =
       Enum.reduce(sentences, {[], [], 0}, fn sentence, {groups, current, current_len} ->
-        sentence_len = String.length(sentence)
+        sentence_size = get_chunk_size.(sentence)
 
-        if current_len + sentence_len + 1 > max_chars and current != [] do
-          {[Enum.reverse(current) | groups], [sentence], sentence_len}
+        if current_len + sentence_size + 1 > max_chars and current != [] do
+          {[Enum.reverse(current) | groups], [sentence], sentence_size}
         else
           sep = if current == [], do: 0, else: 1
-          {groups, [sentence | current], current_len + sentence_len + sep}
+          {groups, [sentence | current], current_len + sentence_size + sep}
         end
       end)
 

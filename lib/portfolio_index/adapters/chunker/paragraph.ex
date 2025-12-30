@@ -11,9 +11,24 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
   2. Merge small paragraphs to reach target size
   3. Split large paragraphs at sentence boundaries if needed
 
+  ## Configuration
+
+  - `:chunk_size` - Target chunk size (default: 1000)
+  - `:chunk_overlap` - Overlap between chunks (default: 200)
+  - `:min_paragraph_size` - Minimum paragraph size before merging (default: 50)
+  - `:get_chunk_size` - Function to measure size (default: `&String.length/1`)
+
   ## Example
 
       config = %{chunk_size: 1000, chunk_overlap: 200, min_paragraph_size: 100}
+      {:ok, chunks} = Paragraph.chunk(text, :plain, config)
+
+      # With token-based sizing
+      config = %{
+        chunk_size: 256,
+        chunk_overlap: 40,
+        get_chunk_size: &MyTokenizer.count_tokens/1
+      }
       {:ok, chunks} = Paragraph.chunk(text, :plain, config)
   """
 
@@ -29,6 +44,7 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
     chunk_size = config[:chunk_size] || @default_chunk_size
     chunk_overlap = config[:chunk_overlap] || @default_chunk_overlap
     min_paragraph_size = config[:min_paragraph_size] || @default_min_paragraph_size
+    get_chunk_size = config[:get_chunk_size] || (&String.length/1)
 
     if String.trim(text) == "" do
       {:ok, []}
@@ -36,9 +52,9 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
       chunks =
         text
         |> split_into_paragraphs()
-        |> merge_small_paragraphs(min_paragraph_size)
-        |> split_large_paragraphs(chunk_size)
-        |> group_to_chunk_size(chunk_size, chunk_overlap)
+        |> merge_small_paragraphs(min_paragraph_size, get_chunk_size)
+        |> split_large_paragraphs(chunk_size, get_chunk_size)
+        |> group_to_chunk_size(chunk_size, chunk_overlap, get_chunk_size)
         |> Enum.reject(&(String.trim(&1) == ""))
 
       result =
@@ -70,13 +86,14 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
   @spec estimate_chunks(String.t(), map()) :: non_neg_integer()
   def estimate_chunks(text, config) do
     chunk_size = config[:chunk_size] || @default_chunk_size
+    get_chunk_size = config[:get_chunk_size] || (&String.length/1)
 
-    text_length = String.length(text)
+    text_size = get_chunk_size.(text)
     paragraph_count = count_paragraphs(text)
 
-    # Estimate based on both text length and paragraph count
-    by_length = div(text_length, chunk_size) + 1
-    max(by_length, div(paragraph_count, 3) + 1)
+    # Estimate based on both text size and paragraph count
+    by_size = div(text_size, chunk_size) + 1
+    max(by_size, div(paragraph_count, 3) + 1)
   end
 
   # Private functions
@@ -89,22 +106,24 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
     |> Enum.reject(&(&1 == ""))
   end
 
-  @spec merge_small_paragraphs([String.t()], pos_integer()) :: [String.t()]
-  defp merge_small_paragraphs(paragraphs, min_size) do
+  @spec merge_small_paragraphs([String.t()], pos_integer(), function()) :: [String.t()]
+  defp merge_small_paragraphs(paragraphs, min_size, get_chunk_size) do
     {merged, current} =
       Enum.reduce(paragraphs, {[], ""}, fn para, {result, current} ->
+        current_size = if current == "", do: 0, else: get_chunk_size.(current)
+        para_size = get_chunk_size.(para)
+
         cond do
           # Current is empty, use this paragraph
           current == "" ->
             {result, para}
 
           # Current paragraph is small, try to merge
-          String.length(current) < min_size ->
+          current_size < min_size ->
             {result, current <> "\n\n" <> para}
 
           # Current is big enough, keep separate
-          String.length(para) < min_size and
-              String.length(current) + String.length(para) < min_size * 3 ->
+          para_size < min_size and current_size + para_size < min_size * 3 ->
             {result, current <> "\n\n" <> para}
 
           # Keep as separate paragraphs
@@ -120,41 +139,43 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
     end
   end
 
-  @spec split_large_paragraphs([String.t()], pos_integer()) :: [String.t()]
-  defp split_large_paragraphs(paragraphs, max_size) do
+  @spec split_large_paragraphs([String.t()], pos_integer(), function()) :: [String.t()]
+  defp split_large_paragraphs(paragraphs, max_size, get_chunk_size) do
     Enum.flat_map(paragraphs, fn para ->
-      if String.length(para) > max_size do
-        split_at_sentences(para, max_size)
+      if get_chunk_size.(para) > max_size do
+        split_at_sentences(para, max_size, get_chunk_size)
       else
         [para]
       end
     end)
   end
 
-  @spec split_at_sentences(String.t(), pos_integer()) :: [String.t()]
-  defp split_at_sentences(text, max_size) do
+  @spec split_at_sentences(String.t(), pos_integer(), function()) :: [String.t()]
+  defp split_at_sentences(text, max_size, get_chunk_size) do
     sentences = split_into_sentences(text)
 
     {chunks, current, _} =
-      Enum.reduce(sentences, {[], "", 0}, fn sentence, {chunks, current, current_len} ->
-        sentence_len = String.length(sentence)
+      Enum.reduce(sentences, {[], "", 0}, fn sentence, {chunks, current, current_size} ->
+        sentence_size = get_chunk_size.(sentence)
+        separator_size = if current == "", do: 0, else: get_chunk_size.(" ")
 
         cond do
           # Single sentence exceeds max size, keep it anyway
-          current == "" and sentence_len > max_size ->
+          current == "" and sentence_size > max_size ->
             {[sentence | chunks], "", 0}
 
           # Current is empty, start with this sentence
           current == "" ->
-            {chunks, sentence, sentence_len}
+            {chunks, sentence, sentence_size}
 
           # Adding would exceed max size
-          current_len + sentence_len + 1 > max_size ->
-            {[current | chunks], sentence, sentence_len}
+          current_size + separator_size + sentence_size > max_size ->
+            {[current | chunks], sentence, sentence_size}
 
           # Add to current
           true ->
-            {chunks, current <> " " <> sentence, current_len + sentence_len + 1}
+            new_current = current <> " " <> sentence
+            {chunks, new_current, current_size + separator_size + sentence_size}
         end
       end)
 
@@ -172,29 +193,30 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
     |> Enum.reject(&(String.trim(&1) == ""))
   end
 
-  @spec group_to_chunk_size([String.t()], pos_integer(), non_neg_integer()) :: [String.t()]
-  defp group_to_chunk_size(paragraphs, chunk_size, overlap) do
+  @spec group_to_chunk_size([String.t()], pos_integer(), non_neg_integer(), function()) ::
+          [String.t()]
+  defp group_to_chunk_size(paragraphs, chunk_size, overlap, get_chunk_size) do
     {chunks, current, _} =
-      Enum.reduce(paragraphs, {[], "", 0}, fn para, {chunks, current, current_len} ->
-        para_len = String.length(para)
+      Enum.reduce(paragraphs, {[], "", 0}, fn para, {chunks, current, current_size} ->
+        para_size = get_chunk_size.(para)
         separator = if current == "", do: "", else: "\n\n"
-        separator_len = String.length(separator)
+        separator_size = get_chunk_size.(separator)
 
         cond do
           # Current is empty
           current == "" ->
-            {chunks, para, para_len}
+            {chunks, para, para_size}
 
           # Adding this paragraph would exceed chunk size
-          current_len + separator_len + para_len > chunk_size ->
-            overlap_text = get_overlap_text(current, overlap)
+          current_size + separator_size + para_size > chunk_size ->
+            overlap_text = get_overlap_text(current, overlap, get_chunk_size)
             new_current = if overlap_text == "", do: para, else: overlap_text <> "\n\n" <> para
-            {[current | chunks], new_current, String.length(new_current)}
+            {[current | chunks], new_current, get_chunk_size.(new_current)}
 
           # Add paragraph to current chunk
           true ->
             new_current = current <> separator <> para
-            {chunks, new_current, current_len + separator_len + para_len}
+            {chunks, new_current, current_size + separator_size + para_size}
         end
       end)
 
@@ -205,32 +227,34 @@ defmodule PortfolioIndex.Adapters.Chunker.Paragraph do
     end
   end
 
-  @spec get_overlap_text(String.t(), non_neg_integer()) :: String.t()
-  defp get_overlap_text(_text, overlap) when overlap <= 0, do: ""
+  @spec get_overlap_text(String.t(), non_neg_integer(), function()) :: String.t()
+  defp get_overlap_text(_text, overlap, _get_chunk_size) when overlap <= 0, do: ""
 
-  defp get_overlap_text(text, overlap) do
+  defp get_overlap_text(text, overlap, get_chunk_size) do
     # Get the last paragraph(s) that fit within overlap
     paragraphs =
       text
       |> split_into_paragraphs()
       |> Enum.reverse()
 
-    take_for_overlap(paragraphs, overlap, [])
+    take_for_overlap(paragraphs, overlap, [], get_chunk_size)
     |> Enum.join("\n\n")
   end
 
-  @spec take_for_overlap([String.t()], non_neg_integer(), [String.t()]) :: [String.t()]
-  defp take_for_overlap([], _remaining, acc), do: acc
+  @spec take_for_overlap([String.t()], non_neg_integer(), [String.t()], function()) :: [
+          String.t()
+        ]
+  defp take_for_overlap([], _remaining, acc, _get_chunk_size), do: acc
 
-  defp take_for_overlap([para | rest], remaining, acc) do
-    para_len = String.length(para)
+  defp take_for_overlap([para | rest], remaining, acc, get_chunk_size) do
+    para_size = get_chunk_size.(para)
 
-    if para_len <= remaining do
-      take_for_overlap(rest, remaining - para_len - 2, [para | acc])
+    if para_size <= remaining do
+      take_for_overlap(rest, remaining - para_size - 2, [para | acc], get_chunk_size)
     else
       # Take partial paragraph if it's the first one and acc is empty
       if acc == [] do
-        partial = String.slice(para, -min(remaining, para_len), remaining)
+        partial = String.slice(para, -min(remaining, String.length(para)), remaining)
         [partial]
       else
         acc

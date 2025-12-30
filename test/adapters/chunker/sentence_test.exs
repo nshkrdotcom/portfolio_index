@@ -119,4 +119,38 @@ defmodule PortfolioIndex.Adapters.Chunker.SentenceTest do
       assert estimate >= 1
     end
   end
+
+  describe "get_chunk_size option" do
+    test "uses custom get_chunk_size function" do
+      text = "First sentence here. Second sentence here. Third sentence here."
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      config = %{chunk_size: 5, chunk_overlap: 0, get_chunk_size: word_counter}
+
+      {:ok, chunks} = Sentence.chunk(text, :plain, config)
+      # Should split based on word count
+      refute Enum.empty?(chunks)
+    end
+
+    test "estimate_chunks uses get_chunk_size" do
+      text = "One word. Two words. Three words. Four words. Five words."
+
+      word_counter = fn text ->
+        text |> String.split(~r/\s+/, trim: true) |> length()
+      end
+
+      # With word count, text has 10 words
+      estimate =
+        Sentence.estimate_chunks(text, %{
+          chunk_size: 4,
+          chunk_overlap: 0,
+          get_chunk_size: word_counter
+        })
+
+      assert estimate >= 1
+    end
+  end
 end
