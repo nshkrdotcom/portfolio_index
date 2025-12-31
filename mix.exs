@@ -20,6 +20,7 @@ defmodule PortfolioIndex.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+        plt_add_apps: [:mix],
         flags: [:error_handling, :unknown, :unmatched_returns]
       ],
       preferred_cli_env: [
@@ -44,13 +45,13 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      # {:portfolio_core, "~> 0.3.0"},
-      {:portfolio_core, path: "../portfolio_core"},
+      {:portfolio_core, "~> 0.3.1"},
 
       # Database adapters
       {:ecto_sql, "~> 3.11"},
       {:postgrex, "~> 0.17"},
       {:pgvector, "~> 0.2"},
+      {:hnswlib, "~> 0.1.6"},
 
       # Graph database
       {:boltx, "~> 0.0.6"},
@@ -58,7 +59,7 @@ defmodule PortfolioIndex.MixProject do
       # AI/LLM
       {:gemini_ex, "~> 0.8.8"},
       {:claude_agent_sdk, "~> 0.7.2"},
-      {:codex_sdk, "~> 0.4.4"},
+      {:codex_sdk, "~> 0.4.5"},
 
       # HTTP clients for APIs
       {:req, "~> 0.4"},

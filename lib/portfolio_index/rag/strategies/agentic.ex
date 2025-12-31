@@ -1,12 +1,33 @@
 defmodule PortfolioIndex.RAG.Strategies.Agentic do
   @moduledoc """
-  Agentic RAG strategy with tool-based retrieval.
+  Agentic RAG strategy with tool-based retrieval and enhanced pipeline support.
 
   Uses an iterative approach:
   1. Analyze query to determine retrieval needs
   2. Use tools to gather information iteratively
   3. Self-assess gathered context
   4. Synthesize final results
+
+  ## Enhanced Pipeline Mode
+
+  The strategy supports a full pipeline execution with all enhancements:
+
+      ctx = Context.new("What is Elixir?", llm: MyLLM)
+
+      result = Agentic.execute_pipeline("What is Elixir?",
+        llm: &MyLLM.complete/2,
+        search_fn: &MySearcher.search/2,
+        reranker: MyReranker
+      )
+
+  Pipeline steps:
+  1. Query rewriting (clean conversational input)
+  2. Query expansion (add synonyms)
+  3. Query decomposition (break complex questions)
+  4. Collection selection (route to relevant collections)
+  5. Self-correcting search (iterate until sufficient)
+  6. Reranking (score and filter results)
+  7. Self-correcting answer (ensure grounding)
   """
 
   @behaviour PortfolioIndex.RAG.Strategy
@@ -17,6 +38,11 @@ defmodule PortfolioIndex.RAG.Strategies.Agentic do
   alias PortfolioIndex.Adapters.LLM.Gemini, as: DefaultLLM
   alias PortfolioIndex.Adapters.VectorStore.Pgvector, as: DefaultVectorStore
   alias PortfolioIndex.RAG.AdapterResolver
+  alias PortfolioIndex.RAG.Pipeline.Context
+  alias PortfolioIndex.RAG.QueryProcessor
+  alias PortfolioIndex.RAG.Reranker
+  alias PortfolioIndex.RAG.SelfCorrectingAnswer
+  alias PortfolioIndex.RAG.SelfCorrectingSearch
 
   require Logger
 
@@ -410,4 +436,219 @@ defmodule PortfolioIndex.RAG.Strategies.Agentic do
       metadata
     )
   end
+
+  # ==========================================================================
+  # Enhanced Pipeline Functions
+  # ==========================================================================
+
+  @doc """
+  Execute full agentic pipeline with all enhancements.
+
+  Pipeline steps:
+  1. Query rewriting (clean conversational input)
+  2. Query expansion (add synonyms)
+  3. Query decomposition (break complex questions)
+  4. Collection selection (route to relevant collections)
+  5. Self-correcting search (iterate until sufficient)
+  6. Reranking (score and filter results)
+  7. Self-correcting answer (ensure grounding)
+
+  ## Options
+
+    - `:llm` - LLM function `fn messages, opts -> {:ok, %{content: ...}} end`
+    - `:search_fn` - Search function `fn query, opts -> {:ok, [results]} end`
+    - `:reranker` - Reranker module or function
+    - `:collection_selector` - Collection selector module
+    - `:collections` - Available collections for routing
+    - `:skip` - List of steps to skip: `[:rewrite, :expand, :decompose, :select, :rerank]`
+    - `:max_search_iterations` - Max self-correcting search iterations (default: 3)
+    - `:max_answer_corrections` - Max answer correction attempts (default: 2)
+    - `:rerank_threshold` - Minimum score for reranked results (default: 0.5)
+
+  ## Returns
+
+    - `{:ok, map}` with keys: `:answer`, `:results`, `:context`, `:corrections`
+    - `{:error, reason}` on failure
+  """
+  @spec execute_pipeline(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def execute_pipeline(question, opts \\ []) do
+    ctx = Context.new(question, opts)
+
+    result_ctx = with_context(ctx, opts)
+
+    if Context.error?(result_ctx) do
+      {:error, result_ctx.error}
+    else
+      {:ok,
+       %{
+         answer: result_ctx.answer,
+         results: result_ctx.results,
+         context_used: result_ctx.context_used,
+         corrections: result_ctx.corrections,
+         correction_count: result_ctx.correction_count,
+         rewritten_query: result_ctx.rewritten_query,
+         expanded_query: result_ctx.expanded_query,
+         sub_questions: result_ctx.sub_questions,
+         selected_indexes: result_ctx.selected_indexes,
+         rerank_scores: result_ctx.rerank_scores
+       }}
+    end
+  end
+
+  @doc """
+  Execute pipeline with Context struct.
+  Enables functional composition with pipe operator.
+
+  ## Usage
+
+      ctx = Context.new("What is Elixir?", llm: my_llm)
+      |> Agentic.with_context(search_fn: &my_search/2)
+
+      ctx.answer
+      # => "Elixir is a functional programming language..."
+  """
+  @spec with_context(Context.t(), keyword()) :: Context.t()
+  def with_context(%Context{halted?: true} = ctx, _opts), do: ctx
+  def with_context(%Context{error: error} = ctx, _opts) when not is_nil(error), do: ctx
+
+  def with_context(%Context{} = ctx, opts) do
+    skip = Keyword.get(opts, :skip, [])
+
+    # Merge context opts with provided opts
+    merged_opts = Keyword.merge(ctx.opts, opts)
+
+    ctx
+    |> maybe_rewrite(merged_opts, :rewrite in skip)
+    |> maybe_expand(merged_opts, :expand in skip)
+    |> maybe_decompose(merged_opts, :decompose in skip)
+    |> maybe_select_collections(merged_opts, :select in skip)
+    |> do_self_correcting_search(merged_opts)
+    |> maybe_rerank(merged_opts, :rerank in skip)
+    |> do_self_correcting_answer(merged_opts)
+  end
+
+  # Private pipeline step functions
+
+  defp maybe_rewrite(%Context{halted?: true} = ctx, _opts, _skip), do: ctx
+  defp maybe_rewrite(ctx, _opts, true), do: ctx
+
+  defp maybe_rewrite(ctx, opts, false) do
+    case Keyword.get(opts, :llm) do
+      nil -> ctx
+      _llm -> QueryProcessor.rewrite(ctx, opts)
+    end
+  end
+
+  defp maybe_expand(%Context{halted?: true} = ctx, _opts, _skip), do: ctx
+  defp maybe_expand(ctx, _opts, true), do: ctx
+
+  defp maybe_expand(ctx, opts, false) do
+    case Keyword.get(opts, :llm) do
+      nil -> ctx
+      _llm -> QueryProcessor.expand(ctx, opts)
+    end
+  end
+
+  defp maybe_decompose(%Context{halted?: true} = ctx, _opts, _skip), do: ctx
+  defp maybe_decompose(ctx, _opts, true), do: ctx
+
+  defp maybe_decompose(ctx, opts, false) do
+    case Keyword.get(opts, :llm) do
+      nil -> ctx
+      _llm -> QueryProcessor.decompose(ctx, opts)
+    end
+  end
+
+  defp maybe_select_collections(%Context{halted?: true} = ctx, _opts, _skip), do: ctx
+  defp maybe_select_collections(ctx, _opts, true), do: ctx
+
+  defp maybe_select_collections(ctx, opts, false) do
+    selector = Keyword.get(opts, :collection_selector)
+    collections = Keyword.get(opts, :collections, [])
+
+    case {selector, collections} do
+      {nil, _} ->
+        ctx
+
+      {_, []} ->
+        ctx
+
+      {selector_module, collections} ->
+        case selector_module.select(effective_query(ctx), collections, opts) do
+          {:ok, result} ->
+            %{
+              ctx
+              | selected_indexes: result.selected,
+                selection_reasoning: result.reasoning
+            }
+
+          {:error, _reason} ->
+            ctx
+        end
+    end
+  end
+
+  defp do_self_correcting_search(%Context{halted?: true} = ctx, _opts), do: ctx
+
+  defp do_self_correcting_search(ctx, opts) do
+    search_fn = Keyword.get(opts, :search_fn)
+
+    case search_fn do
+      nil ->
+        ctx
+
+      search ->
+        search_opts =
+          opts
+          |> Keyword.put(:search_fn, search)
+          |> Keyword.put(:max_iterations, Keyword.get(opts, :max_search_iterations, 3))
+
+        SelfCorrectingSearch.search(ctx, search_opts)
+    end
+  end
+
+  defp maybe_rerank(%Context{halted?: true} = ctx, _opts, _skip), do: ctx
+  defp maybe_rerank(ctx, _opts, true), do: ctx
+
+  defp maybe_rerank(ctx, opts, false) do
+    reranker = Keyword.get(opts, :reranker)
+
+    case reranker do
+      nil ->
+        ctx
+
+      reranker_module ->
+        rerank_opts =
+          opts
+          |> Keyword.put(:reranker, reranker_module)
+          |> Keyword.put(:threshold, Keyword.get(opts, :rerank_threshold, 0.5))
+
+        Reranker.rerank(ctx, rerank_opts)
+    end
+  end
+
+  defp do_self_correcting_answer(%Context{halted?: true} = ctx, _opts), do: ctx
+
+  defp do_self_correcting_answer(ctx, opts) do
+    llm = Keyword.get(opts, :llm)
+
+    case llm do
+      nil ->
+        ctx
+
+      _ ->
+        answer_opts =
+          opts
+          |> Keyword.put(:max_corrections, Keyword.get(opts, :max_answer_corrections, 2))
+
+        SelfCorrectingAnswer.answer(ctx, answer_opts)
+    end
+  end
+
+  defp effective_query(%Context{expanded_query: expanded}) when is_binary(expanded), do: expanded
+
+  defp effective_query(%Context{rewritten_query: rewritten}) when is_binary(rewritten),
+    do: rewritten
+
+  defp effective_query(%Context{question: question}), do: question
 end
