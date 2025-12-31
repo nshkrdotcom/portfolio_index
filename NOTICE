@@ -1,0 +1,17 @@
+Portfolio Index
+Copyright 2025 nshkrdotcom
+
+This project includes work derived from:
+
+Arcana (https://github.com/georgeguimaraes/arcana)
+Copyright 2025 George Guimarães
+Licensed under the Apache License, Version 2.0
+http://www.apache.org/licenses/LICENSE-2.0
+
+The derivation consists of architectural patterns, feature designs, and
+implementation approaches analyzed from Arcana's codebase. No code was
+directly copied, but the design of several components (RAG pipeline,
+evaluation system, chunker utilities, telemetry patterns) was informed
+by studying Arcana's implementation.
+
+See docs/20251230/arcana_gap_analysis/ for the detailed analysis.

@@ -308,9 +308,9 @@ Recursive.chunk(text, :plain, %{
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Portfolio Index                           │
+│                    Portfolio Index                          │
 ├─────────────────────────────────────────────────────────────┤
-│  Adapters                                                    │
+│  Adapters                                                   │
 │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐      │
 │  │ Vector Store  │ │ Graph Store   │ │   Embedder    │      │
 │  │ • Pgvector    │ │ • Neo4j       │ │ • Gemini      │      │
@@ -322,13 +322,13 @@ Recursive.chunk(text, :plain, %{
 │  │ • Anthropic   │ │               │ │               │      │
 │  └───────────────┘ └───────────────┘ └───────────────┘      │
 ├─────────────────────────────────────────────────────────────┤
-│  Pipelines (Broadway)                                        │
+│  Pipelines (Broadway)                                       │
 │  ┌───────────────────────────┐ ┌───────────────────────────┐│
 │  │        Ingestion          │ │        Embedding          ││
 │  │ FileProducer → Chunker    │ │ ETSProducer → VectorStore ││
 │  └───────────────────────────┘ └───────────────────────────┘│
 ├─────────────────────────────────────────────────────────────┤
-│  RAG Strategies                                              │
+│  RAG Strategies                                             │
 │  ┌────────────────────┐ ┌────────────────────┐              │
 │  │       Hybrid       │ │      Self-RAG      │              │
 │  │ Vector + RRF fusion│ │ Critique + Refine  │              │
@@ -341,8 +341,8 @@ Recursive.chunk(text, :plain, %{
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     Portfolio Core                           │
-│              (Port Specifications & Registry)                │
+│                     Portfolio Core                          │
+│              (Port Specifications & Registry)               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -807,6 +807,20 @@ Attach handlers for monitoring:
 
 - [`portfolio_core`](https://github.com/nshkrdotcom/portfolio_core) - Hexagonal architecture primitives
 - [`portfolio_manager`](https://github.com/nshkrdotcom/portfolio_manager) - CLI and application layer
+
+## Acknowledgments
+
+Significant portions of this library's architecture and features were derived from
+analysis of [Arcana](https://github.com/georgeguimaraes/arcana) by George Guimarães,
+licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+Features inspired by Arcana include:
+- RAG pipeline architecture (query rewriting, expansion, decomposition)
+- Evaluation system design (IR metrics, test case generation)
+- Chunker token utilities and sizing options
+- Telemetry patterns and agent system design
+
+See `docs/20251230/arcana_gap_analysis/` for detailed analysis.
 
 ## License
 
