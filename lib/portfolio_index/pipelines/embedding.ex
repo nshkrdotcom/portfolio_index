@@ -190,7 +190,7 @@ defmodule PortfolioIndex.Pipelines.Embedding do
   end
 
   defp check_rate_limit(rate_limit, interval) do
-    case Hammer.check_rate("embedding_api", interval, rate_limit) do
+    case PortfolioIndex.RateLimiter.check_rate("embedding_api", interval, rate_limit) do
       {:allow, _count} -> :ok
       {:deny, _limit} -> {:error, :rate_limited}
     end

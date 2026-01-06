@@ -1,4 +1,4 @@
-defmodule PortfolioIndex.Adapters.LLM.OpenAI do
+defmodule PortfolioIndex.Adapters.LLM.Codex do
   @behaviour PortfolioCore.Ports.LLM
 
   @moduledoc """
@@ -9,14 +9,14 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
 
   ## Configuration
 
-      config :portfolio_index, :openai,
+      config :portfolio_index, :codex,
         model: nil  # Uses SDK default, or specify override
 
   ## Manifest
 
       adapters:
         llm:
-          module: PortfolioIndex.Adapters.LLM.OpenAI
+          module: PortfolioIndex.Adapters.LLM.Codex
           config:
             model: null  # Uses SDK default
   """
@@ -113,7 +113,7 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
         {:ok, normalize_response(response)}
 
       {:error, reason} ->
-        Logger.error("OpenAI completion failed: #{inspect(reason)}")
+        Logger.error("Codex completion failed: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -129,7 +129,7 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
       {:ok, response}
     else
       {:error, reason} ->
-        Logger.error("OpenAI completion failed: #{inspect(reason)}")
+        Logger.error("Codex completion failed: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -157,7 +157,7 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
       {:ok, codex_stream(result)}
     else
       {:error, reason} ->
-        Logger.error("OpenAI streaming failed: #{inspect(reason)}")
+        Logger.error("Codex streaming failed: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -444,7 +444,7 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
 
   defp configured_model do
     :portfolio_index
-    |> Application.get_env(:openai, [])
+    |> Application.get_env(:codex, [])
     |> Keyword.get(:model)
   end
 
@@ -548,12 +548,12 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
   defp blank?(value), do: value in [nil, ""]
 
   defp sdk_module do
-    Application.get_env(:portfolio_index, :openai_sdk, CodexSdk)
+    Application.get_env(:portfolio_index, :codex_sdk, CodexSdk)
   end
 
   defp emit_telemetry(event, metadata) do
     :telemetry.execute(
-      [:portfolio_index, :llm, :openai, event],
+      [:portfolio_index, :llm, :codex, event],
       %{count: 1},
       metadata
     )

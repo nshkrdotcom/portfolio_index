@@ -11,7 +11,9 @@ config :portfolio_index, PortfolioIndex.Repo,
   pool_size: 10,
   types: PortfolioIndex.PostgrexTypes
 
-# Neo4j configuration
+# Neo4j configuration (disabled by default - set start_boltx: true to enable)
+config :portfolio_index, start_boltx: false
+
 config :boltx, Boltx,
   name: Boltx,
   uri: "bolt://localhost:7687",

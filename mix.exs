@@ -60,6 +60,7 @@ defmodule PortfolioIndex.MixProject do
       {:gemini_ex, "~> 0.8.8"},
       {:claude_agent_sdk, "~> 0.7.2"},
       {:codex_sdk, "~> 0.4.5"},
+      {:openai_ex, "~> 0.9.18"},
 
       # HTTP clients for APIs
       {:req, "~> 0.4"},
@@ -68,9 +69,6 @@ defmodule PortfolioIndex.MixProject do
       # Pipeline processing
       {:broadway, "~> 1.0"},
       {:gen_stage, "~> 1.2"},
-
-      # Rate limiting
-      {:hammer, "~> 6.1"},
 
       # Telemetry
       {:telemetry, "~> 1.2"},
