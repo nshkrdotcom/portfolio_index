@@ -42,7 +42,9 @@ defmodule PortfolioIndex.Test.QueryRewriter.WhitespaceResponseLLM do
 end
 
 defmodule PortfolioIndex.Adapters.QueryRewriter.LLMTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.Adapters.QueryRewriter.LLM
   alias PortfolioIndex.Test.QueryRewriter.EmptyResponseLLM
@@ -83,9 +85,10 @@ defmodule PortfolioIndex.Adapters.QueryRewriter.LLMTest do
 
     test "returns error on LLM failure" do
       opts = [context: %{adapters: %{llm: FailingLLM}}]
-      result = LLM.rewrite("test query", opts)
 
-      assert {:error, :api_error} = result
+      capture_log(fn ->
+        assert {:error, :api_error} = LLM.rewrite("test query", opts)
+      end)
     end
 
     test "returns original when LLM returns empty response" do

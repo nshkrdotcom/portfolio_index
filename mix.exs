@@ -23,12 +23,17 @@ defmodule PortfolioIndex.MixProject do
         plt_add_apps: [:mix],
         flags: [:error_handling, :unknown, :unmatched_returns]
       ],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         "test.watch": :test,
         coveralls: :test,
         "coveralls.html": :test
-      ],
-      test_coverage: [tool: ExCoveralls]
+      ]
     ]
   end
 
@@ -45,7 +50,10 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      {:portfolio_core, "~> 0.3.1"},
+      {:portfolio_core, path: "../portfolio_core", override: true},
+
+      # Resilience primitives (rate limiting, retry, backoff)
+      {:foundation, path: "../foundation"},
 
       # Database adapters
       {:ecto_sql, "~> 3.11"},
@@ -56,14 +64,14 @@ defmodule PortfolioIndex.MixProject do
       # Graph database
       {:boltx, "~> 0.0.6"},
 
-      # AI/LLM
-      {:gemini_ex, "~> 0.8.8"},
-      {:claude_agent_sdk, "~> 0.7.2"},
-      {:codex_sdk, "~> 0.4.5"},
+      # AI/LLM (path for local dev)
+      {:gemini_ex, path: "../gemini_ex"},
+      {:claude_agent_sdk, path: "../claude_agent_sdk"},
+      {:codex_sdk, path: "../codex_sdk"},
       {:openai_ex, "~> 0.9.18"},
 
       # HTTP clients for APIs
-      {:req, "~> 0.4"},
+      {:req, "~> 0.5"},
       {:finch, "~> 0.18"},
 
       # Pipeline processing
@@ -72,7 +80,7 @@ defmodule PortfolioIndex.MixProject do
 
       # Telemetry
       {:telemetry, "~> 1.2"},
-      {:telemetry_metrics, "~> 0.6"},
+      {:telemetry_metrics, "~> 1.1"},
       {:telemetry_poller, "~> 1.0"},
 
       # JSON
@@ -87,7 +95,8 @@ defmodule PortfolioIndex.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mox, "~> 1.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
-      {:bypass, "~> 2.1", only: :test}
+      {:bypass, "~> 2.1", only: :test},
+      {:supertester, "~> 0.5.0", only: :test}
     ]
   end
 

@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Maintenance.ProgressTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Maintenance.Progress
 

@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.VectorStore.MemoryTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   # Tag for CI exclusion - HNSWLib NIFs may timeout on some runners
   @moduletag :memory

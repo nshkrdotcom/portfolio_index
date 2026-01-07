@@ -136,7 +136,11 @@ defmodule PortfolioIndex.Neo4jCase do
 
   defp handle_connection_retry(deadline) do
     if System.monotonic_time(:millisecond) < deadline do
-      Process.sleep(100)
+      receive do
+      after
+        100 -> :ok
+      end
+
       :retry
     else
       :timeout

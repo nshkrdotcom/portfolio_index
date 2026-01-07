@@ -40,6 +40,21 @@ defmodule PortfolioIndex.Pipelines.Embedding do
 
   @queue_name :embedding_queue
 
+  @queue_override_key {__MODULE__, :queue_name}
+
+  @doc false
+  def queue_name do
+    Process.get(@queue_override_key) ||
+      Application.get_env(:portfolio_index, :embedding_queue_table, @queue_name)
+  end
+
+  @doc false
+  def __supertester_set_table__(:queue_name, table) do
+    Process.put(@queue_override_key, table)
+  end
+
+  def __supertester_set_table__(_key, _table), do: :ok
+
   def start_link(opts) do
     name = Keyword.get(opts, :name, __MODULE__)
     concurrency = Keyword.get(opts, :concurrency, 5)
@@ -53,7 +68,7 @@ defmodule PortfolioIndex.Pipelines.Embedding do
     Broadway.start_link(__MODULE__,
       name: name,
       producer: [
-        module: {PortfolioIndex.Pipelines.Producers.ETSProducer, [table: @queue_name]},
+        module: {PortfolioIndex.Pipelines.Producers.ETSProducer, [table: queue_name()]},
         concurrency: 1
       ],
       processors: [
@@ -95,7 +110,7 @@ defmodule PortfolioIndex.Pipelines.Embedding do
   def enqueue(chunk) do
     _ = ensure_queue_exists()
     key = System.unique_integer([:monotonic, :positive])
-    :ets.insert(@queue_name, {key, chunk})
+    :ets.insert(queue_name(), {key, chunk})
     :ok
   end
 
@@ -104,7 +119,7 @@ defmodule PortfolioIndex.Pipelines.Embedding do
   """
   def queue_size do
     _ = ensure_queue_exists()
-    :ets.info(@queue_name, :size)
+    :ets.info(queue_name(), :size)
   end
 
   @impl true
@@ -134,6 +149,7 @@ defmodule PortfolioIndex.Pipelines.Embedding do
         id = generate_chunk_id(chunk)
 
         metadata = %{
+          content: chunk.content,
           source: chunk.source,
           index: chunk.index,
           format: chunk.format,
@@ -171,6 +187,9 @@ defmodule PortfolioIndex.Pipelines.Embedding do
 
         {:failed, reason} ->
           Logger.error("Embedding failed: #{inspect(reason)}")
+
+        {:error, reason} ->
+          Logger.error("Embedding failed: #{inspect(reason)}")
       end
     end)
 
@@ -180,19 +199,50 @@ defmodule PortfolioIndex.Pipelines.Embedding do
   # Private functions
 
   defp ensure_queue_exists do
-    case :ets.whereis(@queue_name) do
-      :undefined ->
-        :ets.new(@queue_name, [:named_table, :public, :ordered_set])
+    table = queue_name()
 
-      _tid ->
+    cond do
+      is_atom(table) ->
+        case :ets.whereis(table) do
+          :undefined ->
+            :ets.new(table, [:named_table, :public, :ordered_set])
+
+          _tid ->
+            :ok
+        end
+
+      is_reference(table) ->
+        case :ets.info(table) do
+          :undefined ->
+            new_table = :ets.new(:embedding_queue, [:public, :ordered_set])
+            set_queue_override(new_table)
+            :ok
+
+          _info ->
+            :ok
+        end
+
+      true ->
         :ok
     end
   end
 
-  defp check_rate_limit(rate_limit, interval) do
-    case PortfolioIndex.RateLimiter.check_rate("embedding_api", interval, rate_limit) do
-      {:allow, _count} -> :ok
-      {:deny, _limit} -> {:error, :rate_limited}
+  defp set_queue_override(table) do
+    if Process.get(@queue_override_key) do
+      Process.put(@queue_override_key, table)
+    else
+      Application.put_env(:portfolio_index, :embedding_queue_table, table)
+    end
+  end
+
+  defp check_rate_limit(_rate_limit, _interval) do
+    # Rate limiting is now handled by the centralized RateLimiter adapter
+    # in the embedder layer. This check provides fail-fast behavior.
+    alias PortfolioIndex.Adapters.RateLimiter
+
+    case RateLimiter.check(:gemini, :embedding) do
+      :ok -> :ok
+      {:backoff, _ms} -> {:error, :rate_limited}
     end
   end
 

@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.RAG.Strategies.HybridTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Fixtures
   alias PortfolioIndex.Mocks.Embedder

@@ -54,7 +54,7 @@ defmodule PortfolioIndex.Test.MockSearcher do
 end
 
 defmodule PortfolioIndex.RAG.SelfCorrectingSearchTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.RAG.Pipeline.Context
   alias PortfolioIndex.RAG.SelfCorrectingSearch

@@ -11,8 +11,8 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
 
   ## Usage
 
-      # Ensure tsvector column exists
-      :ok = FullText.ensure_tsvector_column("my_index")
+  # Ensure tsvector column exists
+  :ok = FullText.ensure_tsvector_column("my_index")
 
       # Search using full-text
       {:ok, results} = FullText.search("my_index", "elixir functional", 10)
@@ -54,41 +54,49 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
   @spec search(String.t(), String.t(), pos_integer(), keyword()) ::
           {:ok, [map()]} | {:error, term()}
   def search(index_id, query_text, k, opts \\ []) do
-    language = Keyword.get(opts, :language, @default_language)
+    language = sanitize_language(Keyword.get(opts, :language, @default_language))
     phrase = Keyword.get(opts, :phrase, false)
     filter = Keyword.get(opts, :filter)
+    content_column = content_column_sql(opts)
 
     start_time = System.monotonic_time(:millisecond)
 
     ts_query = build_tsquery(query_text, language, phrase)
 
-    # Build the query using Ecto fragments for full-text search
-    query =
-      build_search_query(index_id, ts_query, language, k, filter)
+    case ensure_tsvector_column(index_id, Keyword.put(opts, :content_column, content_column)) do
+      :ok ->
+        # Build the query using Ecto fragments for full-text search
+        query =
+          build_search_query(index_id, ts_query, language, k, filter, content_column)
 
-    case Repo.all(query) do
-      results when is_list(results) ->
-        documents =
-          Enum.map(results, fn result ->
-            %{
-              id: result.id,
-              content: result.content,
-              score: result.rank,
-              metadata: result.metadata || %{}
-            }
-          end)
+        case Repo.all(query) do
+          results when is_list(results) ->
+            documents =
+              Enum.map(results, fn result ->
+                %{
+                  id: result.id,
+                  content: result.content,
+                  score: result.rank,
+                  metadata: result.metadata || %{}
+                }
+              end)
 
-        duration = System.monotonic_time(:millisecond) - start_time
+            duration = System.monotonic_time(:millisecond) - start_time
 
-        emit_telemetry(:search, %{duration_ms: duration, result_count: length(documents)}, %{
-          index_id: index_id
-        })
+            emit_telemetry(:search, %{duration_ms: duration, result_count: length(documents)}, %{
+              index_id: index_id
+            })
 
-        {:ok, documents}
+            {:ok, documents}
 
-      error ->
-        Logger.error("Full-text search failed: #{inspect(error)}")
-        {:error, error}
+          error ->
+            Logger.error("Full-text search failed: #{inspect(error)}")
+            {:error, error}
+        end
+
+      {:error, reason} ->
+        Logger.debug("Full-text search unavailable: #{inspect(reason)}")
+        {:error, reason}
     end
   rescue
     e ->
@@ -108,7 +116,7 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
   - `index_id` - The index identifier (table name)
   - `opts` - Options:
     - `:language` - Text search language (default: "english")
-    - `:content_column` - Column to index (default: "content")
+    - `:content_column` - Column/expression to index (default: "metadata->>'content'")
 
   ## Returns
 
@@ -117,19 +125,20 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
   """
   @spec ensure_tsvector_column(String.t(), keyword()) :: :ok | {:error, term()}
   def ensure_tsvector_column(index_id, opts \\ []) do
-    language = Keyword.get(opts, :language, @default_language)
-    content_column = Keyword.get(opts, :content_column, "content")
+    language = sanitize_language(Keyword.get(opts, :language, @default_language))
+    content_column = content_column_sql(opts)
+    table_name = table_name(index_id)
 
     # Add tsvector column if it doesn't exist
     add_column_sql = """
-    ALTER TABLE #{index_id}
+    ALTER TABLE #{table_name}
     ADD COLUMN IF NOT EXISTS tsv tsvector
     GENERATED ALWAYS AS (to_tsvector('#{language}', COALESCE(#{content_column}, ''))) STORED
     """
 
     # Create GIN index
     create_index_sql = """
-    CREATE INDEX IF NOT EXISTS #{index_id}_tsv_idx ON #{index_id} USING GIN (tsv)
+    CREATE INDEX IF NOT EXISTS #{table_name}_tsv_idx ON #{table_name} USING GIN (tsv)
     """
 
     with {:ok, _} <- Repo.query(add_column_sql),
@@ -137,12 +146,12 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
       :ok
     else
       {:error, reason} ->
-        Logger.warning("Could not create tsvector column: #{inspect(reason)}")
+        Logger.debug("Could not create tsvector column: #{inspect(reason)}")
         {:error, reason}
     end
   rescue
     e ->
-      Logger.warning("Error ensuring tsvector column: #{inspect(e)}")
+      Logger.debug("Error ensuring tsvector column: #{inspect(e)}")
       {:error, inspect(e)}
   end
 
@@ -154,20 +163,76 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
   @spec build_search_query(String.t(), String.t(), String.t(), pos_integer(), map() | nil) ::
           Ecto.Query.t()
   def build_search_query(index_id, ts_query, language, k, filter) do
-    table = String.to_atom(index_id)
+    build_search_query(index_id, ts_query, language, k, filter, content_column_sql([]))
+  end
+
+  @spec build_search_query(
+          String.t(),
+          String.t(),
+          String.t(),
+          pos_integer(),
+          map() | nil,
+          String.t()
+        ) ::
+          Ecto.Query.t()
+  def build_search_query(index_id, ts_query, language, k, filter, content_column) do
+    table = table_name(index_id)
+    language = sanitize_language(language)
 
     base_query =
-      from(d in table,
-        select: %{
-          id: d.id,
-          content: d.content,
-          metadata: d.metadata,
-          rank: fragment("ts_rank(tsv, to_tsquery(?, ?))", ^language, ^ts_query)
-        },
-        where: fragment("tsv @@ to_tsquery(?, ?)", ^language, ^ts_query),
-        order_by: [desc: fragment("ts_rank(tsv, to_tsquery(?, ?))", ^language, ^ts_query)],
-        limit: ^k
-      )
+      case {content_column, language} do
+        {"content", "simple"} ->
+          from(d in table,
+            select: %{
+              id: d.id,
+              content: d.content,
+              metadata: d.metadata,
+              rank: fragment("ts_rank(tsv, to_tsquery('simple', ?))", ^ts_query)
+            },
+            where: fragment("tsv @@ to_tsquery('simple', ?)", ^ts_query),
+            order_by: [desc: fragment("ts_rank(tsv, to_tsquery('simple', ?))", ^ts_query)],
+            limit: ^k
+          )
+
+        {"content", _} ->
+          from(d in table,
+            select: %{
+              id: d.id,
+              content: d.content,
+              metadata: d.metadata,
+              rank: fragment("ts_rank(tsv, to_tsquery('english', ?))", ^ts_query)
+            },
+            where: fragment("tsv @@ to_tsquery('english', ?)", ^ts_query),
+            order_by: [desc: fragment("ts_rank(tsv, to_tsquery('english', ?))", ^ts_query)],
+            limit: ^k
+          )
+
+        {_, "simple"} ->
+          from(d in table,
+            select: %{
+              id: d.id,
+              content: fragment("metadata->>'content'"),
+              metadata: d.metadata,
+              rank: fragment("ts_rank(tsv, to_tsquery('simple', ?))", ^ts_query)
+            },
+            where: fragment("tsv @@ to_tsquery('simple', ?)", ^ts_query),
+            order_by: [desc: fragment("ts_rank(tsv, to_tsquery('simple', ?))", ^ts_query)],
+            limit: ^k
+          )
+
+        _ ->
+          from(d in table,
+            select: %{
+              id: d.id,
+              content: fragment("metadata->>'content'"),
+              metadata: d.metadata,
+              rank: fragment("ts_rank(tsv, to_tsquery('english', ?))", ^ts_query)
+            },
+            where: fragment("tsv @@ to_tsquery('english', ?)", ^ts_query),
+            order_by: [desc: fragment("ts_rank(tsv, to_tsquery('english', ?))", ^ts_query)],
+            limit: ^k
+          )
+      end
 
     maybe_add_filter(base_query, filter)
   end
@@ -235,4 +300,34 @@ defmodule PortfolioIndex.Adapters.VectorStore.Pgvector.FullText do
       metadata
     )
   end
+
+  defp content_column_sql(opts) do
+    case Keyword.get(opts, :content_column) do
+      "content" -> "content"
+      :content -> "content"
+      "metadata->>'content'" -> "metadata->>'content'"
+      :metadata_content -> "metadata->>'content'"
+      _ -> "metadata->>'content'"
+    end
+  end
+
+  defp table_name(index_id) do
+    safe_id =
+      index_id
+      |> to_string()
+      |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
+      |> String.downcase()
+
+    "vectors_#{safe_id}"
+  end
+
+  defp sanitize_language(language) when is_binary(language) do
+    if Regex.match?(~r/^[a-z_]+$/i, language) do
+      String.downcase(language)
+    else
+      @default_language
+    end
+  end
+
+  defp sanitize_language(_), do: @default_language
 end

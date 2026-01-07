@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Portfolio.Gen.EmbeddingMigrationTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   import ExUnit.CaptureIO
 

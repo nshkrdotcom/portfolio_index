@@ -34,7 +34,7 @@ defmodule PortfolioIndex.Test.EmptyLLM do
 end
 
 defmodule PortfolioIndex.GraphRAG.EntityExtractorTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.GraphRAG.EntityExtractor
   alias PortfolioIndex.Test.EmptyLLM

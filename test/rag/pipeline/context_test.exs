@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.RAG.Pipeline.ContextTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.RAG.Pipeline.Context
 

@@ -42,6 +42,7 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
 
   alias OpenaiEx.Chat
   alias OpenaiEx.ChatMessage
+  alias PortfolioIndex.Adapters.RateLimiter
 
   @default_model "gpt-4o-mini"
   @default_timeout 30_000
@@ -65,13 +66,23 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
 
   @impl true
   def complete(messages, opts \\ []) do
+    # Wait for rate limiter before making request
+    RateLimiter.wait(:openai, :chat)
+
     with {:ok, client} <- build_client(opts),
          {:ok, request} <- build_chat_request(messages, opts),
          {:ok, response} <- Chat.Completions.create(client, request) do
+      RateLimiter.record_success(:openai, :chat)
       emit_telemetry(:complete, %{model: response["model"]})
       {:ok, normalize_response(response)}
     else
+      {:error, :live_api_disabled} = error ->
+        Logger.debug("OpenAI live API disabled; set base_url or allow_live_api to enable.")
+        error
+
       {:error, reason} ->
+        failure_type = detect_failure_type(reason)
+        RateLimiter.record_failure(:openai, :chat, failure_type)
         Logger.error("OpenAI completion failed: #{inspect(reason)}")
         {:error, reason}
     end
@@ -111,18 +122,22 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
   # Client construction
 
   defp build_client(opts) do
-    api_key = Keyword.get(opts, :api_key) || configured_api_key()
+    if live_api_allowed?(opts) do
+      api_key = Keyword.get(opts, :api_key) || configured_api_key()
 
-    if is_nil(api_key) or api_key == "" do
-      {:error, :missing_api_key}
+      if is_nil(api_key) or api_key == "" do
+        {:error, :missing_api_key}
+      else
+        organization = Keyword.get(opts, :organization) || configured_organization()
+
+        client =
+          OpenaiEx.new(api_key, organization)
+          |> apply_client_options(opts)
+
+        {:ok, client}
+      end
     else
-      organization = Keyword.get(opts, :organization) || configured_organization()
-
-      client =
-        OpenaiEx.new(api_key, organization)
-        |> apply_client_options(opts)
-
-      {:ok, client}
+      {:error, :live_api_disabled}
     end
   end
 
@@ -287,6 +302,17 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
     Application.get_env(:portfolio_index, :openai, [])
   end
 
+  defp live_api_allowed?(opts) do
+    base_url = Keyword.get(opts, :base_url) || configured_base_url()
+    allow_live = config()[:allow_live_api] || false
+
+    not test_env?() or not is_nil(base_url) or allow_live
+  end
+
+  defp test_env? do
+    Application.get_env(:portfolio_index, :env, :prod) == :test
+  end
+
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
@@ -296,5 +322,21 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
       %{count: 1},
       metadata
     )
+  end
+
+  defp detect_failure_type(reason) do
+    reason_str = inspect(reason) |> String.downcase()
+
+    cond do
+      String.contains?(reason_str, "rate") or String.contains?(reason_str, "429") or
+          String.contains?(reason_str, "quota") ->
+        :rate_limited
+
+      String.contains?(reason_str, "timeout") ->
+        :timeout
+
+      true ->
+        :server_error
+    end
   end
 end

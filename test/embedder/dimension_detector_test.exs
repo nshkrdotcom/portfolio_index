@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Embedder.DimensionDetectorTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.Embedder
   alias PortfolioIndex.Embedder.DimensionDetector

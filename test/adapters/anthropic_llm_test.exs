@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.LLM.AnthropicTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.LLM.Anthropic
 
@@ -36,6 +36,46 @@ defmodule PortfolioIndex.Adapters.LLM.AnthropicTest do
       models = Anthropic.supported_models()
       assert is_list(models)
       assert models != []
+    end
+  end
+
+  describe "stream/2" do
+    test "streams chunks using the configured sdk" do
+      expect(ClaudeAgentSdkMock, :stream, fn messages, _opts ->
+        assert [%{role: "user", content: "Stream"}] = messages
+        ["Hello", " ", "Claude"]
+      end)
+
+      {:ok, stream} = Anthropic.stream([%{role: :user, content: "Stream"}])
+      chunks = Enum.to_list(stream)
+
+      assert Enum.map(chunks, & &1.delta) == ["Hello", " ", "Claude"]
+    end
+  end
+
+  describe "complete/2 live" do
+    if System.get_env("ANTHROPIC_API_KEY") do
+      @tag :live
+      test "completes messages via Claude API" do
+        original_sdk = Application.get_env(:portfolio_index, :anthropic_sdk)
+        Application.put_env(:portfolio_index, :anthropic_sdk, ClaudeAgentSDK)
+
+        on_exit(fn ->
+          Application.put_env(:portfolio_index, :anthropic_sdk, original_sdk)
+        end)
+
+        {:ok, result} =
+          Anthropic.complete([%{role: :user, content: "Say hello in one word"}], max_tokens: 10)
+
+        assert is_binary(result.content)
+        assert result.model != nil
+      end
+    else
+      @tag :live
+      @tag skip: "ANTHROPIC_API_KEY is not set"
+      test "completes messages via Claude API" do
+        :ok
+      end
     end
   end
 end

@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.Embedder.BumblebeeTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.Embedder.Bumblebee
 

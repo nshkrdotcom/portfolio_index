@@ -37,9 +37,13 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
 
   require Logger
   alias Gemini.Types.Response.GenerateContentResponse
+  alias PortfolioIndex.Adapters.RateLimiter
 
   @impl true
   def complete(messages, opts) do
+    # Wait for rate limiter before making request
+    RateLimiter.wait(:gemini, :chat)
+
     start_time = System.monotonic_time(:millisecond)
     {model_opt, effective_model} = resolve_generation_model(opts)
     max_tokens = Keyword.get(opts, :max_tokens, 4096)
@@ -59,6 +63,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
 
     case generate_with_retry(prompt, gemini_opts, effective_model, _attempt = 1) do
       {:ok, response, content} ->
+        RateLimiter.record_success(:gemini, :chat)
         usage = extract_usage(response, prompt, content)
 
         duration = System.monotonic_time(:millisecond) - start_time
@@ -81,7 +86,13 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
            finish_reason: extract_finish_reason(response)
          }}
 
+      {:error, :rate_limited} = error ->
+        RateLimiter.record_failure(:gemini, :chat, :rate_limited)
+        Logger.error("LLM completion rate limited")
+        error
+
       {:error, reason} ->
+        RateLimiter.record_failure(:gemini, :chat, :server_error)
         Logger.error("LLM completion failed: #{inspect(reason)}")
         {:error, reason}
     end
@@ -189,7 +200,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
   end
 
   defp generate_with_retry(prompt, gemini_opts, model, attempt) do
-    case Gemini.generate(prompt, gemini_opts) do
+    case gemini_module().generate(prompt, gemini_opts) do
       {:ok, response} ->
         case extract_text(response) do
           {:ok, text} when is_binary(text) and text != "" ->
@@ -211,7 +222,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
     if is_binary(response) do
       {:ok, response}
     else
-      Gemini.extract_text(response)
+      gemini_module().extract_text(response)
     end
   end
 
@@ -397,7 +408,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
           end
         )
 
-      case Gemini.stream_generate(prompt, opts) do
+      case gemini_module().stream_generate(prompt, opts) do
         {:ok, _stream_id} -> :ok
         {:error, reason} -> send(parent, {:error, ref, reason})
       end
@@ -437,6 +448,10 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
   end
 
   defp estimate_tokens(_), do: 0
+
+  defp gemini_module do
+    Application.get_env(:portfolio_index, :gemini_sdk, Gemini)
+  end
 
   defp emit_telemetry(operation, measurements, metadata) do
     :telemetry.execute(

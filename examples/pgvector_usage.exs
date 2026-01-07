@@ -1,3 +1,5 @@
+Mix.Task.run("app.start")
+
 alias PortfolioIndex.Adapters.VectorStore.Pgvector
 
 index_id = "example_index_#{System.unique_integer([:positive])}"

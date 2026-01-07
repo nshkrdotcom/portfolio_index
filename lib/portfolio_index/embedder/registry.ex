@@ -193,8 +193,14 @@ defmodule PortfolioIndex.Embedder.Registry do
   defp ensure_started do
     case Process.whereis(__MODULE__) do
       nil ->
-        {:ok, _} = start_link([])
-        :ok
+        case start_link([]) do
+          {:ok, pid} ->
+            Process.unlink(pid)
+            :ok
+
+          {:error, {:already_started, _pid}} ->
+            :ok
+        end
 
       _pid ->
         :ok

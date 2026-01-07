@@ -1,5 +1,7 @@
 defmodule PortfolioIndex.Adapters.Embedder.OpenAITest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.Adapters.Embedder.OpenAI
 
@@ -143,8 +145,10 @@ defmodule PortfolioIndex.Adapters.Embedder.OpenAITest do
         |> Plug.Conn.resp(401, Jason.encode!(response))
       end)
 
-      {:error, reason} = OpenAI.embed("Test", api_url: url <> "/v1/embeddings")
-      assert reason != nil
+      capture_log(fn ->
+        {:error, reason} = OpenAI.embed("Test", api_url: url <> "/v1/embeddings")
+        assert reason != nil
+      end)
     end
 
     test "returns error when API key is missing" do
@@ -231,8 +235,10 @@ defmodule PortfolioIndex.Adapters.Embedder.OpenAITest do
         |> Plug.Conn.resp(429, Jason.encode!(response))
       end)
 
-      {:error, _reason} =
-        OpenAI.embed_batch(["Test"], api_url: url <> "/v1/embeddings")
+      capture_log(fn ->
+        {:error, _reason} =
+          OpenAI.embed_batch(["Test"], api_url: url <> "/v1/embeddings")
+      end)
     end
   end
 end

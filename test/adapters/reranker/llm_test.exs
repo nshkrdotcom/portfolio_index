@@ -23,7 +23,7 @@ defmodule PortfolioIndex.Test.InvalidResponseMockLLM do
 end
 
 defmodule PortfolioIndex.Adapters.Reranker.LLMTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.Reranker.LLM
   alias PortfolioIndex.Test.FailingMockLLM

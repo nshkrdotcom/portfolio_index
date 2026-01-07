@@ -34,7 +34,7 @@ defmodule PortfolioIndex.Test.CollectionSelectorSingleCollectionLLM do
 end
 
 defmodule PortfolioIndex.Adapters.CollectionSelector.LLMTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.CollectionSelector.LLM
   alias PortfolioIndex.Test.CollectionSelectorFailingLLM

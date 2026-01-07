@@ -37,7 +37,7 @@ defmodule PortfolioIndex.Test.EmptyGraphStore do
 end
 
 defmodule PortfolioIndex.GraphRAG.CommunityDetectorTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.GraphRAG.CommunityDetector
   alias PortfolioIndex.Test.EmptyGraphStore

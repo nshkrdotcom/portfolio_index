@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Embedder.ConfigTest do
-  use ExUnit.Case, async: false
+  use PortfolioIndex.SupertesterCase, async: false
 
   alias PortfolioIndex.Adapters.Embedder
   alias PortfolioIndex.Embedder.Config

@@ -44,7 +44,9 @@ defmodule PortfolioIndex.Test.FailingReranker do
 end
 
 defmodule PortfolioIndex.RAG.RerankerTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.RAG.Pipeline.Context
   alias PortfolioIndex.RAG.Reranker
@@ -143,10 +145,12 @@ defmodule PortfolioIndex.RAG.RerankerTest do
 
       opts = [reranker: FailingReranker]
 
-      result_ctx = Reranker.rerank(ctx, opts)
+      capture_log(fn ->
+        result_ctx = Reranker.rerank(ctx, opts)
 
-      # Should return original results on error
-      assert result_ctx.results == @sample_chunks
+        # Should return original results on error
+        assert result_ctx.results == @sample_chunks
+      end)
     end
 
     test "propagates halted context" do

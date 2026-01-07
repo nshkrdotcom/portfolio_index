@@ -3,7 +3,8 @@ import Config
 # Base configuration for PortfolioIndex
 
 config :portfolio_index,
-  ecto_repos: [PortfolioIndex.Repo]
+  ecto_repos: [PortfolioIndex.Repo],
+  env: config_env()
 
 # Configures Elixir's Logger
 config :logger, :console,

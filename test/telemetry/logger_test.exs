@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Telemetry.LoggerTest do
-  use ExUnit.Case, async: false
+  use PortfolioIndex.SupertesterCase, async: false
 
   alias PortfolioIndex.Telemetry.Logger
 

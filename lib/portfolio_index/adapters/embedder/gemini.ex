@@ -37,9 +37,13 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
   require Logger
   alias Gemini.Types.Response.ContentEmbedding
   alias Gemini.Types.Response.EmbedContentResponse
+  alias PortfolioIndex.Adapters.RateLimiter
 
   @impl true
   def embed(text, opts) do
+    # Wait for rate limiter before making request
+    RateLimiter.wait(:gemini, :embedding)
+
     start_time = System.monotonic_time(:millisecond)
     {model_opt, effective_model} = resolve_embedding_model(opts)
     dims = resolve_dimensions(opts, effective_model)
@@ -51,8 +55,9 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
       |> Keyword.put(:output_dimensionality, dims)
       |> maybe_put(:model, model_opt)
 
-    case Gemini.embed_content(text, gemini_opts) do
+    case gemini_module().embed_content(text, gemini_opts) do
       {:ok, response} ->
+        RateLimiter.record_success(:gemini, :embedding)
         vector = extract_embedding(response)
         normalized_vector = maybe_normalize(vector, effective_model, dims)
 
@@ -78,6 +83,8 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
          }}
 
       {:error, reason} ->
+        failure_type = detect_failure_type(reason)
+        RateLimiter.record_failure(:gemini, :embedding, failure_type)
         Logger.error("Embedding failed: #{inspect(reason)}")
         {:error, reason}
     end
@@ -191,6 +198,10 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
   defp maybe_put(opts, _key, nil), do: opts
   defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
 
+  defp gemini_module do
+    Application.get_env(:portfolio_index, :gemini_sdk, Gemini)
+  end
+
   defp maybe_normalize(vector, model, dims) do
     if Gemini.Config.needs_normalization?(model, dims) do
       normalize(vector)
@@ -223,5 +234,20 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
       measurements,
       metadata
     )
+  end
+
+  defp detect_failure_type(reason) do
+    reason_str = inspect(reason) |> String.downcase()
+
+    cond do
+      String.contains?(reason_str, "rate") or String.contains?(reason_str, "429") ->
+        :rate_limited
+
+      String.contains?(reason_str, "timeout") ->
+        :timeout
+
+      true ->
+        :server_error
+    end
   end
 end

@@ -69,7 +69,9 @@ defmodule PortfolioIndex.Test.QueryProcessor.AllInOneMockLLM do
 end
 
 defmodule PortfolioIndex.RAG.QueryProcessorTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.RAG.Pipeline.Context
   alias PortfolioIndex.RAG.QueryProcessor
@@ -104,11 +106,13 @@ defmodule PortfolioIndex.RAG.QueryProcessorTest do
       ctx = Context.new("test")
       opts = [context: %{adapters: %{llm: FailingLLM}}]
 
-      result = QueryProcessor.rewrite(ctx, opts)
+      capture_log(fn ->
+        result = QueryProcessor.rewrite(ctx, opts)
 
-      # Failure is graceful - context continues without rewrite
-      refute result.halted?
-      assert result.rewritten_query == nil
+        # Failure is graceful - context continues without rewrite
+        refute result.halted?
+        assert result.rewritten_query == nil
+      end)
     end
   end
 

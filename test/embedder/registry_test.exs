@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Embedder.RegistryTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Embedder.Registry
 

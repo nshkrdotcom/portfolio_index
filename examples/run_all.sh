@@ -16,23 +16,31 @@ echo "3. Gemini Embedder"
 mix run examples/gemini_embedder.exs
 echo ""
 
-echo "4. Anthropic LLM (v0.2.0)"
+echo "4. Gemini LLM"
+mix run examples/gemini_llm.exs
+echo ""
+
+echo "5. Anthropic LLM"
 mix run examples/anthropic_llm.exs
 echo ""
 
-echo "5. OpenAI LLM (v0.2.0)"
+echo "6. OpenAI LLM"
 mix run examples/openai_llm.exs
 echo ""
 
-echo "6. Hybrid RAG"
+echo "7. Codex LLM"
+mix run examples/codex_llm.exs
+echo ""
+
+echo "8. Hybrid RAG"
 mix run examples/hybrid_rag.exs
 echo ""
 
-echo "7. GraphRAG (v0.2.0)"
+echo "9. GraphRAG"
 mix run examples/graph_rag.exs
 echo ""
 
-echo "8. Agentic RAG (v0.2.0)"
+echo "10. Agentic RAG"
 mix run examples/agentic_rag.exs
 echo ""
 

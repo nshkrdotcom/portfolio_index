@@ -20,6 +20,9 @@ config :boltx, Boltx,
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+# Prevent live OpenAI calls in test unless explicitly overridden.
+config :portfolio_index, :openai, allow_live_api: false
+
 # Use mocks in tests
 config :portfolio_index,
   vector_store: PortfolioIndex.Mocks.VectorStore,
@@ -27,4 +30,5 @@ config :portfolio_index,
   embedder: PortfolioIndex.Mocks.Embedder,
   llm: PortfolioIndex.Mocks.LLM,
   anthropic_sdk: ClaudeAgentSdkMock,
-  openai_sdk: CodexSdkMock
+  codex_sdk: CodexSdkMock,
+  gemini_sdk: GeminiSdkMock

@@ -1,5 +1,5 @@
 # Configure ExUnit
-ExUnit.start(exclude: [:integration, :skip])
+ExUnit.start(exclude: [:integration, :skip, :live])
 
 # Define Mox mocks for all ports
 Mox.defmock(PortfolioIndex.Mocks.VectorStore, for: PortfolioCore.Ports.VectorStore)
@@ -15,6 +15,7 @@ Mox.defmock(PortfolioIndex.Mocks.LLM, for: PortfolioCore.Ports.LLM)
 Mox.defmock(PortfolioIndex.Mocks.Chunker, for: PortfolioCore.Ports.Chunker)
 Mox.defmock(ClaudeAgentSdkMock, for: PortfolioIndex.Test.ClaudeAgentSdkBehaviour)
 Mox.defmock(CodexSdkMock, for: PortfolioIndex.Test.CodexSdkBehaviour)
+Mox.defmock(GeminiSdkMock, for: PortfolioIndex.Test.GeminiSdkBehaviour)
 
 # Ensure sandbox mode for Ecto
 Ecto.Adapters.SQL.Sandbox.mode(PortfolioIndex.Repo, :manual)

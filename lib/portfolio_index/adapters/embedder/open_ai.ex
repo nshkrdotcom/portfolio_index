@@ -31,6 +31,8 @@ defmodule PortfolioIndex.Adapters.Embedder.OpenAI do
 
   require Logger
 
+  alias PortfolioIndex.Adapters.RateLimiter
+
   @default_model "text-embedding-3-small"
   @default_api_url "https://api.openai.com/v1/embeddings"
 
@@ -44,33 +46,48 @@ defmodule PortfolioIndex.Adapters.Embedder.OpenAI do
   @spec embed(String.t(), keyword()) ::
           {:ok, PortfolioCore.Ports.Embedder.embedding_result()} | {:error, term()}
   def embed(text, opts \\ []) do
+    # Wait for rate limiter before making request
+    RateLimiter.wait(:openai_embeddings, :embed)
+
     start_time = System.monotonic_time(:millisecond)
 
-    with {:ok, api_key} <- get_api_key(opts),
-         {:ok, response} <- call_api([text], api_key, opts) do
-      model = Keyword.get(opts, :model, @default_model)
-      [embedding_data | _] = response["data"]
-      usage = response["usage"]
+    result =
+      with {:ok, api_key} <- get_api_key(opts),
+           {:ok, response} <- call_api([text], api_key, opts) do
+        model = Keyword.get(opts, :model, @default_model)
+        [embedding_data | _] = response["data"]
+        usage = response["usage"]
 
-      duration = System.monotonic_time(:millisecond) - start_time
+        duration = System.monotonic_time(:millisecond) - start_time
 
-      emit_telemetry(
-        :embed,
-        %{
-          duration_ms: duration,
-          tokens: usage["total_tokens"],
-          dimensions: length(embedding_data["embedding"])
-        },
-        %{model: model}
-      )
+        emit_telemetry(
+          :embed,
+          %{
+            duration_ms: duration,
+            tokens: usage["total_tokens"],
+            dimensions: length(embedding_data["embedding"])
+          },
+          %{model: model}
+        )
 
-      {:ok,
-       %{
-         vector: embedding_data["embedding"],
-         model: model,
-         dimensions: length(embedding_data["embedding"]),
-         token_count: usage["total_tokens"]
-       }}
+        {:ok,
+         %{
+           vector: embedding_data["embedding"],
+           model: model,
+           dimensions: length(embedding_data["embedding"]),
+           token_count: usage["total_tokens"]
+         }}
+      end
+
+    case result do
+      {:ok, _} = success ->
+        RateLimiter.record_success(:openai_embeddings, :embed)
+        success
+
+      {:error, reason} = error ->
+        failure_type = detect_failure_type(reason)
+        RateLimiter.record_failure(:openai_embeddings, :embed, failure_type)
+        error
     end
   end
 
@@ -213,5 +230,21 @@ defmodule PortfolioIndex.Adapters.Embedder.OpenAI do
       measurements,
       metadata
     )
+  end
+
+  defp detect_failure_type(reason) do
+    reason_str = inspect(reason) |> String.downcase()
+
+    cond do
+      String.contains?(reason_str, "rate") or String.contains?(reason_str, "429") or
+          String.contains?(reason_str, "quota") ->
+        :rate_limited
+
+      String.contains?(reason_str, "timeout") ->
+        :timeout
+
+      true ->
+        :server_error
+    end
   end
 end

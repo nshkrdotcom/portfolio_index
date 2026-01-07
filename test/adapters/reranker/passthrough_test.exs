@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.Reranker.PassthroughTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.Reranker.Passthrough
 

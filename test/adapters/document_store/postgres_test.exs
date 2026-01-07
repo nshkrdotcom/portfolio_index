@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.DocumentStore.PostgresTest do
-  use ExUnit.Case, async: false
+  use PortfolioIndex.SupertesterCase, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
   alias PortfolioIndex.Adapters.DocumentStore.Postgres

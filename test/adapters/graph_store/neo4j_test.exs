@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.GraphStore.Neo4jTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.GraphStore.Neo4j
 

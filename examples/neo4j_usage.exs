@@ -1,4 +1,22 @@
+Application.put_env(:portfolio_index, :start_repo, false)
+Application.put_env(:portfolio_index, :start_boltx, true)
+Mix.Task.run("app.start")
+
 alias PortfolioIndex.Adapters.GraphStore.Neo4j
+
+boltx_config = Application.get_env(:boltx, Boltx, [])
+
+case Process.whereis(Boltx) do
+  nil ->
+    case Boltx.start_link(boltx_config) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      {:error, reason} -> raise "Failed to start Boltx: #{inspect(reason)}"
+    end
+
+  _pid ->
+    :ok
+end
 
 graph_id = "example_graph_#{System.unique_integer([:positive])}"
 

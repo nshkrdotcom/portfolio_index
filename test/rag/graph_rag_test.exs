@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.RAG.Strategies.GraphRAGTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Mocks.Embedder
   alias PortfolioIndex.Mocks.GraphStore

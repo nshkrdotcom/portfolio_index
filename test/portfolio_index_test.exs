@@ -1,5 +1,5 @@
 defmodule PortfolioIndexTest do
-  use ExUnit.Case
+  use PortfolioIndex.SupertesterCase, async: false
 
   describe "version/0" do
     test "returns version string" do

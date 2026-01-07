@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.RetrievalMetrics.StandardTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.RetrievalMetrics.Standard
 

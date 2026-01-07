@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.VectorStore.BackendTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.VectorStore.Memory
   alias PortfolioIndex.Adapters.VectorStore.Pgvector

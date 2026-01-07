@@ -10,7 +10,7 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
   ## Configuration
 
       config :portfolio_index, :codex,
-        model: nil  # Uses SDK default, or specify override
+        model: "gpt-4o-mini"  # Default to a low-cost model; override if needed
 
   ## Manifest
 
@@ -23,6 +23,10 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
 
   require Logger
 
+  alias PortfolioIndex.Adapters.RateLimiter
+
+  @default_model "gpt-4o-mini"
+
   @default_model_info %{
     context_window: 128_000,
     max_output: 4096,
@@ -31,20 +35,38 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
 
   @impl true
   def complete(messages, opts \\ []) do
+    # Wait for rate limiter before making request (uses openai provider since Codex is OpenAI-based)
+    RateLimiter.wait(:openai, :chat)
+
     sdk = sdk_module()
 
-    cond do
-      function_exported?(sdk, :complete, 2) ->
-        complete_via_sdk(sdk, messages, opts)
+    result =
+      cond do
+        function_exported?(sdk, :complete, 2) ->
+          complete_via_sdk(sdk, messages, opts)
 
-      function_exported?(sdk, :start_thread, 2) ->
-        complete_via_codex(sdk, messages, opts)
+        function_exported?(sdk, :start_thread, 2) ->
+          complete_via_codex(sdk, messages, opts)
 
-      Code.ensure_loaded?(Codex) and function_exported?(Codex, :start_thread, 2) ->
-        complete_via_codex(Codex, messages, opts)
+        Code.ensure_loaded?(Codex) and function_exported?(Codex, :start_thread, 2) ->
+          complete_via_codex(Codex, messages, opts)
 
-      true ->
-        {:error, :unsupported_sdk}
+        true ->
+          {:error, :unsupported_sdk}
+      end
+
+    case result do
+      {:ok, _} = success ->
+        RateLimiter.record_success(:openai, :chat)
+        success
+
+      {:error, :rate_limited} = error ->
+        RateLimiter.record_failure(:openai, :chat, :rate_limited)
+        error
+
+      {:error, _} = error ->
+        RateLimiter.record_failure(:openai, :chat, :server_error)
+        error
     end
   end
 
@@ -77,7 +99,17 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
     if function_exported?(sdk, :supported_models, 0) do
       sdk.supported_models()
     else
-      ["gpt-4o", "gpt-4-turbo", "o1", "o3-mini"]
+      codex_models()
+    end
+  end
+
+  defp codex_models do
+    if Code.ensure_loaded?(Codex.Models) and function_exported?(Codex.Models, :list, 0) do
+      Codex.Models.list()
+      |> Enum.map(& &1.model)
+      |> Enum.uniq()
+    else
+      ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o1", "o3-mini"]
     end
   end
 
@@ -173,7 +205,7 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
   end
 
   defp start_thread(sdk, opts) do
-    model = Keyword.get(opts, :model, configured_model())
+    model = codex_model_opt(opts)
 
     codex_opts =
       %{}
@@ -183,7 +215,7 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
   end
 
   defp build_run_opts(opts) do
-    model = Keyword.get(opts, :model, configured_model())
+    model = codex_model_opt(opts)
     max_tokens = Keyword.get(opts, :max_tokens)
 
     run_config =
@@ -445,7 +477,36 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
   defp configured_model do
     :portfolio_index
     |> Application.get_env(:codex, [])
-    |> Keyword.get(:model)
+    |> Keyword.get(:model, @default_model)
+  end
+
+  defp codex_model_opt(opts) do
+    case Keyword.fetch(opts, :model) do
+      {:ok, model} -> ensure_codex_model(model, warn: true)
+      :error -> ensure_codex_model(configured_model(), warn: false)
+    end
+  end
+
+  defp ensure_codex_model(nil, _opts), do: nil
+
+  defp ensure_codex_model(model, opts) when is_binary(model) do
+    if codex_model_supported?(model) do
+      model
+    else
+      if Keyword.get(opts, :warn, false) do
+        Logger.warning("Codex SDK does not recognize model #{model}; using SDK default")
+      end
+
+      nil
+    end
+  end
+
+  defp ensure_codex_model(model, _opts), do: model
+
+  defp codex_model_supported?(model) when is_binary(model) do
+    Code.ensure_loaded?(Codex.Models) and
+      function_exported?(Codex.Models, :display_name, 1) and
+      not is_nil(Codex.Models.display_name(model))
   end
 
   defp maybe_add(opts, _key, nil), do: opts

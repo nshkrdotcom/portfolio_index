@@ -68,7 +68,9 @@ defmodule PortfolioIndex.Test.QueryDecomposer.AlternateKeyLLM do
 end
 
 defmodule PortfolioIndex.Adapters.QueryDecomposer.LLMTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.Adapters.QueryDecomposer.LLM
   alias PortfolioIndex.Test.QueryDecomposer.AlternateKeyLLM
@@ -107,9 +109,10 @@ defmodule PortfolioIndex.Adapters.QueryDecomposer.LLMTest do
 
     test "returns error on LLM failure" do
       opts = [context: %{adapters: %{llm: FailingLLM}}]
-      result = LLM.decompose("test query", opts)
 
-      assert {:error, :api_error} = result
+      capture_log(fn ->
+        assert {:error, :api_error} = LLM.decompose("test query", opts)
+      end)
     end
 
     test "falls back to original on invalid JSON" do

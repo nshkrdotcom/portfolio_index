@@ -1,7 +1,24 @@
+Application.put_env(:portfolio_index, :start_boltx, true)
+Mix.Task.run("app.start")
+
 alias PortfolioIndex.Adapters.Embedder.Gemini
 alias PortfolioIndex.Adapters.GraphStore.Neo4j
 alias PortfolioIndex.Adapters.VectorStore.Pgvector
 alias PortfolioIndex.RAG.Strategies.GraphRAG
+
+boltx_config = Application.get_env(:boltx, Boltx, [])
+
+case Process.whereis(Boltx) do
+  nil ->
+    case Boltx.start_link(boltx_config) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      {:error, reason} -> raise "Failed to start Boltx: #{inspect(reason)}"
+    end
+
+  _pid ->
+    :ok
+end
 
 index_id = "example_graph_rag_index_#{System.unique_integer([:positive])}"
 graph_id = "example_graph_rag_graph_#{System.unique_integer([:positive])}"

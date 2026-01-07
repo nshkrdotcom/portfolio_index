@@ -24,6 +24,7 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
   require Logger
 
   alias ClaudeAgentSDK.{ContentExtractor, Message, Options}
+  alias PortfolioIndex.Adapters.RateLimiter
 
   @default_model_info %{
     context_window: 200_000,
@@ -33,18 +34,36 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
 
   @impl true
   def complete(messages, opts \\ []) do
+    # Wait for rate limiter before making request
+    RateLimiter.wait(:anthropic, :chat)
+
     sdk = sdk_module()
     _ = Code.ensure_loaded?(sdk)
 
-    cond do
-      function_exported?(sdk, :complete, 2) ->
-        complete_via_sdk(sdk, messages, opts)
+    result =
+      cond do
+        function_exported?(sdk, :complete, 2) ->
+          complete_via_sdk(sdk, messages, opts)
 
-      function_exported?(sdk, :query, 2) ->
-        complete_via_query(sdk, messages, opts)
+        function_exported?(sdk, :query, 2) ->
+          complete_via_query(sdk, messages, opts)
 
-      true ->
-        {:error, :unsupported_sdk}
+        true ->
+          {:error, :unsupported_sdk}
+      end
+
+    case result do
+      {:ok, _} = success ->
+        RateLimiter.record_success(:anthropic, :chat)
+        success
+
+      {:error, :rate_limited} = error ->
+        RateLimiter.record_failure(:anthropic, :chat, :rate_limited)
+        error
+
+      {:error, _} = error ->
+        RateLimiter.record_failure(:anthropic, :chat, :server_error)
+        error
     end
   end
 
@@ -103,12 +122,14 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
   defp complete_via_sdk(sdk, messages, opts) do
     model = Keyword.get(opts, :model, configured_model())
     max_tokens = Keyword.get(opts, :max_tokens)
+    max_turns = Keyword.get(opts, :max_turns)
     system = Keyword.get(opts, :system)
 
     sdk_opts =
       []
       |> maybe_add(:model, model)
       |> maybe_add(:max_tokens, max_tokens)
+      |> maybe_add(:max_turns, max_turns)
       |> maybe_add(:system, system)
 
     converted_messages = convert_messages(messages)
@@ -158,12 +179,14 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
   defp stream_from_sdk(messages, opts) do
     model = Keyword.get(opts, :model, configured_model())
     max_tokens = Keyword.get(opts, :max_tokens)
+    max_turns = Keyword.get(opts, :max_turns)
     system = Keyword.get(opts, :system)
 
     sdk_opts =
       []
       |> maybe_add(:model, model)
       |> maybe_add(:max_tokens, max_tokens)
+      |> maybe_add(:max_turns, max_turns)
       |> maybe_add(:system, system)
 
     converted_messages = convert_messages(messages)
@@ -378,12 +401,13 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
   defp build_query_options(opts, system_prompt) do
     model = Keyword.get(opts, :model, configured_model())
     max_thinking_tokens = Keyword.get(opts, :max_thinking_tokens)
+    max_turns = Keyword.get(opts, :max_turns, 1)
 
     %Options{}
     |> maybe_put_struct(:model, model)
     |> maybe_put_struct(:system_prompt, system_prompt)
     |> maybe_put_struct(:output_format, :json)
-    |> maybe_put_struct(:max_turns, 1)
+    |> maybe_put_struct(:max_turns, max_turns)
     |> maybe_put_struct(:max_thinking_tokens, max_thinking_tokens)
   end
 

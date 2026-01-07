@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Pipelines.EmbeddingTest do
-  use ExUnit.Case, async: false
+  use PortfolioIndex.SupertesterCase, async: false
 
   alias PortfolioIndex.Adapters.VectorStore.Pgvector
   alias PortfolioIndex.DataCase
@@ -203,9 +203,6 @@ defmodule PortfolioIndex.Pipelines.EmbeddingTest do
       }
 
       :ok = Embedding.enqueue(chunk)
-
-      # Give pipeline time to process
-      Process.sleep(2000)
 
       assert Process.alive?(pid)
 

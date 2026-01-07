@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.Chunker.RecursiveTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.Chunker.Recursive
 

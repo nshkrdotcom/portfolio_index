@@ -1011,7 +1011,7 @@ Add new sections:
 - **Gemini** - Google Gemini text-embedding-004
 
 ### LLMs
-- **Gemini** - gemini-2.0-flash-exp with streaming
+- **Gemini** - gemini-flash-lite-latest with streaming
 - **Anthropic** - Claude via claude_agent_sdk (NEW v0.2.0)
 - **OpenAI** - GPT/o1 via codex_sdk (NEW v0.2.0)
 

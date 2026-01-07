@@ -40,7 +40,9 @@ defmodule PortfolioIndex.Test.QueryExpander.EmptyResponseLLM do
 end
 
 defmodule PortfolioIndex.Adapters.QueryExpander.LLMTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.Adapters.QueryExpander.LLM
   alias PortfolioIndex.Test.QueryExpander.EmptyResponseLLM
@@ -86,9 +88,10 @@ defmodule PortfolioIndex.Adapters.QueryExpander.LLMTest do
 
     test "returns error on LLM failure" do
       opts = [context: %{adapters: %{llm: FailingLLM}}]
-      result = LLM.expand("test query", opts)
 
-      assert {:error, :api_error} = result
+      capture_log(fn ->
+        assert {:error, :api_error} = LLM.expand("test query", opts)
+      end)
     end
 
     test "returns original when LLM returns empty response" do

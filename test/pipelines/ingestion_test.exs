@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Pipelines.IngestionTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Pipelines.Ingestion
 
@@ -139,9 +139,6 @@ defmodule PortfolioIndex.Pipelines.IngestionTest do
             index_id: "test_#{System.unique_integer()}",
             name: :"test_ingestion_#{System.unique_integer()}"
           )
-
-        # Give pipeline time to process
-        Process.sleep(1000)
 
         # Pipeline should have processed the file
         assert Process.alive?(pid)

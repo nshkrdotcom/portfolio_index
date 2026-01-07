@@ -22,7 +22,7 @@ Portfolio Index implements the port specifications defined in [Portfolio Core](h
 - **Vector Store Adapters** - pgvector (PostgreSQL + fulltext hybrid)
 - **Graph Store Adapters** - Neo4j via boltx + community operations
 - **Embedding Providers** - Google Gemini
-- **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI GPT/o1
+- **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI GPT-4o-mini
 - **Broadway Pipelines** - Ingestion and embedding with backpressure
 - **RAG Strategies** - Hybrid (RRF fusion), Self-RAG (self-critique), GraphRAG, Agentic
 
@@ -241,15 +241,15 @@ config :boltx, Boltx,
 
 ### LLMs
 
-- **Gemini** - gemini-2.5-flash with streaming
+- **Gemini** - gemini-flash-lite-latest with streaming
 - **Anthropic** - Claude via claude_agent_sdk
-- **OpenAI** - GPT/o1 via codex_sdk
+- **OpenAI** - GPT-4o-mini (low-cost default) via openai_ex
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
-| `Gemini` | Google | gemini-2.5-flash |
+| `Gemini` | Google | gemini-flash-lite-latest |
 | `Anthropic` | Anthropic | Claude (SDK default) |
-| `OpenAI` | OpenAI | GPT/o1 (SDK default) |
+| `OpenAI` | OpenAI | gpt-4o-mini (default) |
 
 ### Chunker
 

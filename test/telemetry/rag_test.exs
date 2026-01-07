@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Telemetry.RAGTest do
-  use ExUnit.Case, async: false
+  use PortfolioIndex.SupertesterCase, async: false
 
   alias PortfolioIndex.RAG.Pipeline.Context
   alias PortfolioIndex.Telemetry.RAG

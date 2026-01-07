@@ -1,5 +1,7 @@
 defmodule PortfolioIndex.Adapters.Embedder.FunctionTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import ExUnit.CaptureLog
 
   alias PortfolioIndex.Adapters.Embedder.Function
 
@@ -51,7 +53,9 @@ defmodule PortfolioIndex.Adapters.Embedder.FunctionTest do
       embed_fn = fn _text -> raise "Boom!" end
       embedder = Function.new(embed_fn, dimensions: 384)
 
-      assert {:error, {:embed_failed, _}} = Function.embed(embedder, "test", [])
+      capture_log(fn ->
+        assert {:error, {:embed_failed, _}} = Function.embed(embedder, "test", [])
+      end)
     end
   end
 

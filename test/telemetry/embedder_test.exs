@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Telemetry.EmbedderTest do
-  use ExUnit.Case, async: false
+  use PortfolioIndex.SupertesterCase, async: false
 
   alias PortfolioIndex.Telemetry.Embedder
 

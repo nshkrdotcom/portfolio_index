@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Adapters.Chunker.SeparatorsTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Adapters.Chunker.Separators
 

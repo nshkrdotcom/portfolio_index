@@ -53,7 +53,7 @@ defmodule PortfolioIndex.Test.FailingAnswerLLM do
 end
 
 defmodule PortfolioIndex.RAG.SelfCorrectingAnswerTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.RAG.Pipeline.Context
   alias PortfolioIndex.RAG.SelfCorrectingAnswer

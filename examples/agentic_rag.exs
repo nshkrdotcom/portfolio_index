@@ -1,3 +1,5 @@
+Mix.Task.run("app.start")
+
 alias PortfolioIndex.Adapters.Embedder.Gemini
 alias PortfolioIndex.Adapters.DocumentStore.Postgres
 alias PortfolioIndex.Adapters.VectorStore.Pgvector

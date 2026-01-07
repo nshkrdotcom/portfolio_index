@@ -1,5 +1,5 @@
 defmodule PortfolioIndex.Evaluation.GeneratorTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
 
   alias PortfolioIndex.Evaluation.Generator
   alias PortfolioIndex.Schemas.{Chunk, TestCase}

@@ -1,20 +1,34 @@
 defmodule PortfolioIndex.Adapters.LLM.GeminiTest do
-  use ExUnit.Case, async: true
+  use PortfolioIndex.SupertesterCase, async: true
+
+  import Mox
 
   alias Elixir.Gemini.Config, as: GeminiConfig
+  alias Gemini.Types.Response.{GenerateContentResponse, UsageMetadata}
   alias PortfolioIndex.Adapters.LLM.Gemini
+
+  setup :verify_on_exit!
+
+  defmodule TestGeminiStream do
+    def stream_generate(_prompt, opts) do
+      opts[:on_chunk].("Hello")
+      opts[:on_chunk].(" Gemini")
+      opts[:on_complete].()
+      {:ok, :stream_id}
+    end
+  end
 
   describe "supported_models/0" do
     test "returns list of supported models" do
       models = Gemini.supported_models()
       assert is_list(models)
-      assert GeminiConfig.get_model(:flash_2_5) in models
+      assert GeminiConfig.default_model() in models
     end
   end
 
   describe "model_info/1" do
-    test "returns info for gemini-2.5-flash" do
-      info = Gemini.model_info(GeminiConfig.get_model(:flash_2_5))
+    test "returns info for default model" do
+      info = Gemini.model_info(GeminiConfig.default_model())
 
       assert is_map(info)
       assert info.context_window > 0
@@ -30,20 +44,83 @@ defmodule PortfolioIndex.Adapters.LLM.GeminiTest do
     end
   end
 
-  # Integration tests would require real API access
-  # Run with: mix test --include integration
-  describe "complete/2 integration" do
-    @tag :skip
-    test "completes messages" do
-      messages = [
-        %{role: :user, content: "Say hello in one word"}
-      ]
+  describe "complete/2" do
+    test "returns content using the configured sdk" do
+      model = GeminiConfig.default_model()
 
-      {:ok, result} = Gemini.complete(messages, max_tokens: 10)
+      response = %GenerateContentResponse{
+        candidates: [%{content: %{parts: [%{text: "Hello"}]}, finish_reason: "STOP"}],
+        usage_metadata: %UsageMetadata{
+          prompt_token_count: 2,
+          candidates_token_count: 1,
+          total_token_count: 3
+        }
+      }
 
-      assert is_binary(result.content)
-      assert result.model == GeminiConfig.default_model()
+      GeminiSdkMock
+      |> expect(:generate, fn prompt, opts ->
+        assert prompt == "User: Hi"
+        assert Keyword.get(opts, :model) == model
+        {:ok, response}
+      end)
+      |> expect(:extract_text, fn ^response -> {:ok, "Hello"} end)
+
+      {:ok, result} = Gemini.complete([%{role: :user, content: "Hi"}], model: model)
+
+      assert result.content == "Hello"
+      assert result.model == model
       assert is_map(result.usage)
+      assert result.finish_reason == :stop
+    end
+  end
+
+  describe "stream/2" do
+    test "streams chunks from the configured sdk" do
+      original_sdk = Application.get_env(:portfolio_index, :gemini_sdk)
+      Application.put_env(:portfolio_index, :gemini_sdk, TestGeminiStream)
+
+      on_exit(fn ->
+        Application.put_env(:portfolio_index, :gemini_sdk, original_sdk)
+      end)
+
+      {:ok, stream} = Gemini.stream([%{role: :user, content: "Hi"}], max_tokens: 10)
+
+      chunks = Enum.to_list(stream)
+      assert Enum.map(chunks, & &1.delta) == ["Hello", " Gemini", ""]
+      assert List.last(chunks).finish_reason == :stop
+    end
+  end
+
+  # Live tests would require real API access
+  # Run with: mix test --include live
+  describe "complete/2 live" do
+    if System.get_env("GEMINI_API_KEY") do
+      @tag :live
+      test "completes messages" do
+        original_sdk = Application.get_env(:portfolio_index, :gemini_sdk)
+
+        Application.put_env(:portfolio_index, :gemini_sdk, Gemini)
+
+        on_exit(fn ->
+          Application.put_env(:portfolio_index, :gemini_sdk, original_sdk)
+        end)
+
+        messages = [
+          %{role: :user, content: "Say hello in one word"}
+        ]
+
+        {:ok, result} = Gemini.complete(messages, max_tokens: 10)
+
+        assert is_binary(result.content)
+        assert result.model == GeminiConfig.default_model()
+        assert is_map(result.usage)
+      end
+    else
+      @tag :live
+      @tag skip: "GEMINI_API_KEY is not set"
+      test "completes messages" do
+        :ok
+      end
     end
   end
 end

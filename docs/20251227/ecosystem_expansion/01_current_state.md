@@ -127,7 +127,7 @@
 
 ```elixir
 # Key features
-- Model: gemini-2.0-flash-exp
+- Model: gemini-flash-lite-latest
 - Chat completions with history
 - Streaming support
 - Token usage tracking
