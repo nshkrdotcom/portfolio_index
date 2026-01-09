@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-08
+
+### Added
+
+#### Local LLM Support
+- `PortfolioIndex.Adapters.LLM.Ollama` - Ollama LLM adapter using ollixir client
+  - Local model orchestration with configurable base URL
+  - OpenAI-style message formatting
+  - Streaming support with delta normalization
+  - Rate limiting and telemetry instrumentation
+  - Configurable model info and supported models list
+- `PortfolioIndex.Adapters.LLM.VLLM` - vLLM adapter for OpenAI-compatible endpoints
+  - Uses openai_ex for OpenAI-compatible API
+  - Configurable base URL for local clusters
+  - SSE stream parsing with finish reason normalization
+  - Rate limiting and failure detection
+
+#### Local Embeddings Support
+- `PortfolioIndex.Adapters.Embedder.Ollama` - Ollama embeddings adapter using ollixir
+  - Support for nomic-embed-text, mxbai-embed-large models
+  - Batch embedding support via native API
+  - Token count extraction from response or estimation fallback
+  - Rate limiting and telemetry instrumentation
+
+#### Telemetry Enhancements
+- `PortfolioIndex.Telemetry.Context` - Lineage context helpers for telemetry metadata
+  - Standard context keys: `trace_id`, `work_id`, `plan_id`, `step_id`
+  - `merge/2` for combining context with telemetry metadata
+  - Integrated into all LLM adapters (Anthropic, Codex, Gemini, OpenAI, Ollama, vLLM)
+
+#### Backend Integration
+- `PortfolioIndex.LLM.BackendBridge` - Bridge for CrucibleIR backend prompts
+  - `prompt_to_messages/1` - Convert backend prompt structs to messages and opts
+  - `completion_from_result/3` - Build completion maps from adapter results
+  - Usage normalization across provider formats
+
+#### Examples
+- `examples/ollama_embedder.exs` - Ollama embedder demonstration
+- `examples/ollama_llm.exs` - Ollama LLM with streaming demonstration
+- `examples/ollama_setup.exs` - Automated Ollama model installation script
+- `examples/vllm_llm.exs` - vLLM adapter demonstration
+- `examples/support/ollama_helpers.exs` - Shared helpers for Ollama examples
+
+### Changed
+
+- LLM adapters now pass opts to telemetry for lineage context propagation
+- Gemini embedder and LLM adapters support SDK injection via `:sdk` option
+- RateLimiter uses rescue instead of try for ETS table creation
+- Updated run_all.sh to include Ollama examples (vLLM skipped by default)
+
+### Dependencies
+
+- Changed portfolio_core from path to hex: `~> 0.4.0`
+- Changed foundation from path to hex: `~> 0.2.0`
+- Changed gemini_ex from path to hex: `~> 0.8.8`
+- Changed claude_agent_sdk from path to hex: `~> 0.7.6`
+- Changed codex_sdk from path to hex: `~> 0.5.0`
+- Added ollixir `~> 0.1.0` for Ollama integration
+
 ## [0.3.1] - 2025-12-30
 
 ### Added
@@ -367,7 +426,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of PortfolioIndex
 
-[Unreleased]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.1.1...v0.2.0

@@ -13,9 +13,13 @@ defmodule PortfolioIndex do
     (hybrid fulltext via `PortfolioIndex.Adapters.VectorStore.Pgvector.Hybrid`)
   - Graph Stores: `PortfolioIndex.Adapters.GraphStore.Neo4j`
     (community ops via `PortfolioIndex.Adapters.GraphStore.Neo4j.Community`)
-  - Embedders: `PortfolioIndex.Adapters.Embedder.Gemini`
+  - Embedders: `PortfolioIndex.Adapters.Embedder.Gemini`,
+    `PortfolioIndex.Adapters.Embedder.OpenAI`,
+    `PortfolioIndex.Adapters.Embedder.Ollama`,
+    `PortfolioIndex.Adapters.Embedder.Bumblebee`
   - LLMs: `PortfolioIndex.Adapters.LLM.Gemini`, `PortfolioIndex.Adapters.LLM.Anthropic`,
-    `PortfolioIndex.Adapters.LLM.OpenAI`
+    `PortfolioIndex.Adapters.LLM.OpenAI`, `PortfolioIndex.Adapters.LLM.Codex`,
+    `PortfolioIndex.Adapters.LLM.Ollama`, `PortfolioIndex.Adapters.LLM.VLLM`
   - Chunkers: `PortfolioIndex.Adapters.Chunker.Recursive`
   - Document Stores: `PortfolioIndex.Adapters.DocumentStore.Postgres`
 

@@ -22,7 +22,8 @@ Portfolio Index implements the port specifications defined in [Portfolio Core](h
 - **Vector Store Adapters** - pgvector (PostgreSQL + fulltext hybrid)
 - **Graph Store Adapters** - Neo4j via boltx + community operations
 - **Embedding Providers** - Google Gemini
-- **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI GPT-4o-mini
+- **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI (openai_ex), Codex (codex_sdk),
+  Ollama, vLLM (OpenAI-compatible)
 - **Broadway Pipelines** - Ingestion and embedding with backpressure
 - **RAG Strategies** - Hybrid (RRF fusion), Self-RAG (self-critique), GraphRAG, Agentic
 
@@ -75,7 +76,7 @@ Add `portfolio_index` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:portfolio_index, "~> 0.3.1"}
+    {:portfolio_index, "~> 0.4.0"}
   ]
 end
 ```
@@ -199,6 +200,37 @@ alias PortfolioIndex.RAG.Strategies.SelfRAG
 | `NEO4J_USER` | Neo4j username | `neo4j` |
 | `NEO4J_PASSWORD` | Neo4j password | - |
 | `GEMINI_API_KEY` | Google Gemini API key | - |
+| `OPENAI_API_KEY` | OpenAI API key (OpenAI + Codex) | - |
+| `OPENAI_ORGANIZATION` | OpenAI organization ID (optional) | - |
+| `ANTHROPIC_API_KEY` | Anthropic API key | - |
+| `CODEX_API_KEY` | Codex SDK API key (optional) | - |
+| `OLLAMA_HOST` | Ollama host URL | `http://localhost:11434` |
+| `OLLAMA_BASE_URL` | Ollama base URL (override) | `http://localhost:11434/api` |
+| `OLLAMA_API_KEY` | Ollama API key (optional) | - |
+| `VLLM_BASE_URL` | vLLM base URL | `http://localhost:8000/v1` |
+| `VLLM_API_KEY` | vLLM API key (optional) | - |
+
+### Local Model Setup
+
+Ollama examples require a running Ollama server and these models:
+
+- `llama3.2` (LLM)
+- `nomic-embed-text` (embeddings)
+
+Install them with:
+
+```bash
+ollama pull llama3.2
+ollama pull nomic-embed-text
+```
+
+Or run:
+
+```bash
+mix run examples/ollama_setup.exs
+```
+
+The vLLM example expects a vLLM server running at `VLLM_BASE_URL`.
 
 ### Config Files
 
@@ -233,23 +265,32 @@ config :boltx, Boltx,
 ### Embedders
 
 - **Gemini** - Google Gemini text-embedding-004
+- **OpenAI** - text-embedding-3-small/large
+- **Ollama** - Local embeddings via ollixir
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
 | `Gemini` | Google | text-embedding-004 (768 dims) |
-| `OpenAI` | OpenAI | text-embedding-3-small/large (placeholder) |
+| `OpenAI` | OpenAI | text-embedding-3-small/large |
+| `Ollama` | Ollama | nomic-embed-text (default) |
 
 ### LLMs
 
 - **Gemini** - gemini-flash-lite-latest with streaming
 - **Anthropic** - Claude via claude_agent_sdk
 - **OpenAI** - GPT-4o-mini (low-cost default) via openai_ex
+- **Codex** - OpenAI Codex SDK with agentic support
+- **Ollama** - Local models via ollixir
+- **vLLM** - OpenAI-compatible endpoints via openai_ex
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
 | `Gemini` | Google | gemini-flash-lite-latest |
 | `Anthropic` | Anthropic | Claude (SDK default) |
 | `OpenAI` | OpenAI | gpt-4o-mini (default) |
+| `Codex` | OpenAI | Codex SDK default |
+| `Ollama` | Ollama | llama3.2 (default) |
+| `VLLM` | vLLM | llama3 (default) |
 
 ### Chunker
 
@@ -320,6 +361,10 @@ Recursive.chunk(text, :plain, %{
 │  │     LLM       │ │   Chunker     │ │ Document Store│      │
 │  │ • Gemini      │ │ • Recursive   │ │ • Postgres    │      │
 │  │ • Anthropic   │ │               │ │               │      │
+│  │ • OpenAI      │ │               │ │               │      │
+│  │ • Codex       │ │               │ │               │      │
+│  │ • Ollama      │ │               │ │               │      │
+│  │ • vLLM        │ │               │ │               │      │
 │  └───────────────┘ └───────────────┘ └───────────────┘      │
 ├─────────────────────────────────────────────────────────────┤
 │  Pipelines (Broadway)                                       │

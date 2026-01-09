@@ -3,6 +3,7 @@ defmodule PortfolioIndex.Adapters.Embedder.GeminiTest do
 
   import Mox
 
+  alias Elixir.Gemini, as: GeminiSdk
   alias Elixir.Gemini.Config, as: GeminiConfig
   alias Gemini.Types.Response.{ContentEmbedding, EmbedContentResponse}
   alias PortfolioIndex.Adapters.Embedder.Gemini
@@ -81,7 +82,7 @@ defmodule PortfolioIndex.Adapters.Embedder.GeminiTest do
     if System.get_env("GEMINI_API_KEY") do
       @tag :live
       test "generates embedding for text" do
-        {:ok, result} = Gemini.embed("Hello, world!", [])
+        {:ok, result} = Gemini.embed("Hello, world!", sdk: GeminiSdk)
 
         assert is_list(result.vector)
         assert result.vector != []

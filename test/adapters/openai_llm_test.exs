@@ -3,6 +3,12 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAITest do
 
   alias PortfolioIndex.Adapters.LLM.OpenAI
 
+  defmodule TelemetryHandler do
+    def handle_event(event, measurements, metadata, %{parent: parent}) do
+      send(parent, {:telemetry, event, measurements, metadata})
+    end
+  end
+
   setup do
     bypass = Bypass.open()
     {:ok, bypass: bypass, url: "http://localhost:#{bypass.port}"}
@@ -84,6 +90,62 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAITest do
         )
 
       assert response.model == "gpt-3.5-turbo"
+    end
+
+    test "includes lineage context in telemetry metadata", %{bypass: bypass, url: url} do
+      ref = make_ref()
+
+      :telemetry.attach_many(
+        "openai-telemetry-#{inspect(ref)}",
+        [[:portfolio_index, :llm, :openai, :complete]],
+        &TelemetryHandler.handle_event/4,
+        %{parent: self()}
+      )
+
+      Bypass.expect(bypass, "POST", "/v1/chat/completions", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        decoded = Jason.decode!(body)
+
+        assert decoded["model"] == "gpt-4o-mini"
+
+        response = %{
+          "id" => "chatcmpl_test_context",
+          "object" => "chat.completion",
+          "created" => 1_700_000_002,
+          "model" => "gpt-4o-mini",
+          "choices" => [
+            %{
+              "index" => 0,
+              "message" => %{"role" => "assistant", "content" => "Hello!"},
+              "finish_reason" => "stop"
+            }
+          ],
+          "usage" => %{"prompt_tokens" => 1, "completion_tokens" => 1}
+        }
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(response))
+      end)
+
+      {:ok, _response} =
+        OpenAI.complete(
+          [%{role: :user, content: "Hi"}],
+          api_key: "test-key",
+          base_url: url <> "/v1",
+          trace_id: "trace-123",
+          work_id: "work-456",
+          plan_id: "plan-789",
+          step_id: "step-101"
+        )
+
+      assert_receive {:telemetry, [:portfolio_index, :llm, :openai, :complete], _, meta}
+      assert meta.trace_id == "trace-123"
+      assert meta.work_id == "work-456"
+      assert meta.plan_id == "plan-789"
+      assert meta.step_id == "step-101"
+
+      :telemetry.detach("openai-telemetry-#{inspect(ref)}")
     end
   end
 

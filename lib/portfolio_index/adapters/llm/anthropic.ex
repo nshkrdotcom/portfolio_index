@@ -25,6 +25,7 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
 
   alias ClaudeAgentSDK.{ContentExtractor, Message, Options}
   alias PortfolioIndex.Adapters.RateLimiter
+  alias PortfolioIndex.Telemetry.Context
 
   @default_model_info %{
     context_window: 200_000,
@@ -136,7 +137,7 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
 
     case sdk.complete(converted_messages, sdk_opts) do
       {:ok, response} ->
-        emit_telemetry(:complete, %{model: response_model(response)})
+        emit_telemetry(:complete, %{model: response_model(response)}, opts)
         {:ok, normalize_response(response)}
 
       {:error, reason} ->
@@ -166,7 +167,7 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
       _ ->
         case extract_query_response(response_messages, options) do
           {:ok, response} ->
-            emit_telemetry(:complete, %{model: response.model})
+            emit_telemetry(:complete, %{model: response.model}, opts)
             {:ok, response}
 
           {:error, reason} ->
@@ -637,7 +638,9 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
     Application.get_env(:portfolio_index, :anthropic_sdk, ClaudeAgentSDK)
   end
 
-  defp emit_telemetry(event, metadata) do
+  defp emit_telemetry(event, metadata, opts) do
+    metadata = Context.merge(metadata, opts)
+
     :telemetry.execute(
       [:portfolio_index, :llm, :anthropic, event],
       %{count: 1},

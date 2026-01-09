@@ -16,6 +16,7 @@ Mox.defmock(PortfolioIndex.Mocks.Chunker, for: PortfolioCore.Ports.Chunker)
 Mox.defmock(ClaudeAgentSdkMock, for: PortfolioIndex.Test.ClaudeAgentSdkBehaviour)
 Mox.defmock(CodexSdkMock, for: PortfolioIndex.Test.CodexSdkBehaviour)
 Mox.defmock(GeminiSdkMock, for: PortfolioIndex.Test.GeminiSdkBehaviour)
+Mox.defmock(OllamaSdkMock, for: PortfolioIndex.Test.OllixirSdkBehaviour)
 
 # Ensure sandbox mode for Ecto
 Ecto.Adapters.SQL.Sandbox.mode(PortfolioIndex.Repo, :manual)

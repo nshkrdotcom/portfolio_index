@@ -31,4 +31,5 @@ config :portfolio_index,
   llm: PortfolioIndex.Mocks.LLM,
   anthropic_sdk: ClaudeAgentSdkMock,
   codex_sdk: CodexSdkMock,
-  gemini_sdk: GeminiSdkMock
+  gemini_sdk: GeminiSdkMock,
+  ollama_sdk: OllamaSdkMock

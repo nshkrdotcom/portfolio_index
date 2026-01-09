@@ -3,6 +3,7 @@ defmodule PortfolioIndex.Adapters.LLM.GeminiTest do
 
   import Mox
 
+  alias Elixir.Gemini, as: GeminiSdk
   alias Elixir.Gemini.Config, as: GeminiConfig
   alias Gemini.Types.Response.{GenerateContentResponse, UsageMetadata}
   alias PortfolioIndex.Adapters.LLM.Gemini
@@ -76,14 +77,11 @@ defmodule PortfolioIndex.Adapters.LLM.GeminiTest do
 
   describe "stream/2" do
     test "streams chunks from the configured sdk" do
-      original_sdk = Application.get_env(:portfolio_index, :gemini_sdk)
-      Application.put_env(:portfolio_index, :gemini_sdk, TestGeminiStream)
-
-      on_exit(fn ->
-        Application.put_env(:portfolio_index, :gemini_sdk, original_sdk)
-      end)
-
-      {:ok, stream} = Gemini.stream([%{role: :user, content: "Hi"}], max_tokens: 10)
+      {:ok, stream} =
+        Gemini.stream([%{role: :user, content: "Hi"}],
+          max_tokens: 10,
+          sdk: TestGeminiStream
+        )
 
       chunks = Enum.to_list(stream)
       assert Enum.map(chunks, & &1.delta) == ["Hello", " Gemini", ""]
@@ -97,19 +95,11 @@ defmodule PortfolioIndex.Adapters.LLM.GeminiTest do
     if System.get_env("GEMINI_API_KEY") do
       @tag :live
       test "completes messages" do
-        original_sdk = Application.get_env(:portfolio_index, :gemini_sdk)
-
-        Application.put_env(:portfolio_index, :gemini_sdk, Gemini)
-
-        on_exit(fn ->
-          Application.put_env(:portfolio_index, :gemini_sdk, original_sdk)
-        end)
-
         messages = [
           %{role: :user, content: "Say hello in one word"}
         ]
 
-        {:ok, result} = Gemini.complete(messages, max_tokens: 10)
+        {:ok, result} = Gemini.complete(messages, max_tokens: 10, sdk: GeminiSdk)
 
         assert is_binary(result.content)
         assert result.model == GeminiConfig.default_model()

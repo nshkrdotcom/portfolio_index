@@ -286,19 +286,15 @@ defmodule PortfolioIndex.Adapters.RateLimiter do
   end
 
   defp create_named_stats_table(name) do
-    try do
-      :ets.new(name, [
-        :named_table,
-        :public,
-        :set,
-        {:read_concurrency, true},
-        {:write_concurrency, true}
-      ])
-
-      :ok
-    rescue
-      ArgumentError -> :ok
-    end
+    :ets.new(name, [
+      :named_table,
+      :public,
+      :set,
+      {:read_concurrency, true},
+      {:write_concurrency, true}
+    ])
+  rescue
+    ArgumentError -> :ok
   end
 
   defp create_stats_table do

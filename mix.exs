@@ -1,7 +1,7 @@
 defmodule PortfolioIndex.MixProject do
   use Mix.Project
 
-  @version "0.3.1"
+  @version "0.4.0"
   @source_url "https://github.com/nshkrdotcom/portfolio_index"
 
   def project do
@@ -50,10 +50,10 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      {:portfolio_core, path: "../portfolio_core", override: true},
+      {:portfolio_core, "~> 0.4.0"},
 
       # Resilience primitives (rate limiting, retry, backoff)
-      {:foundation, path: "../foundation"},
+      {:foundation, "~> 0.2.0"},
 
       # Database adapters
       {:ecto_sql, "~> 3.11"},
@@ -65,9 +65,10 @@ defmodule PortfolioIndex.MixProject do
       {:boltx, "~> 0.0.6"},
 
       # AI/LLM (path for local dev)
-      {:gemini_ex, path: "../gemini_ex"},
-      {:claude_agent_sdk, path: "../claude_agent_sdk"},
-      {:codex_sdk, path: "../codex_sdk"},
+      {:gemini_ex, "~> 0.8.8"},
+      {:claude_agent_sdk, "~> 0.7.6"},
+      {:codex_sdk, "~> 0.5.0"},
+      {:ollixir, "~> 0.1.0"},
       {:openai_ex, "~> 0.9.18"},
 
       # HTTP clients for APIs

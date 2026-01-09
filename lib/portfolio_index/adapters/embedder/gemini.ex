@@ -45,6 +45,7 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
     RateLimiter.wait(:gemini, :embedding)
 
     start_time = System.monotonic_time(:millisecond)
+    sdk = resolve_sdk(opts)
     {model_opt, effective_model} = resolve_embedding_model(opts)
     dims = resolve_dimensions(opts, effective_model)
 
@@ -52,10 +53,11 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
       opts
       |> Keyword.delete(:model)
       |> Keyword.delete(:dimensions)
+      |> Keyword.delete(:sdk)
       |> Keyword.put(:output_dimensionality, dims)
       |> maybe_put(:model, model_opt)
 
-    case gemini_module().embed_content(text, gemini_opts) do
+    case sdk.embed_content(text, gemini_opts) do
       {:ok, response} ->
         RateLimiter.record_success(:gemini, :embedding)
         vector = extract_embedding(response)
@@ -200,6 +202,10 @@ defmodule PortfolioIndex.Adapters.Embedder.Gemini do
 
   defp gemini_module do
     Application.get_env(:portfolio_index, :gemini_sdk, Gemini)
+  end
+
+  defp resolve_sdk(opts) do
+    Keyword.get(opts, :sdk) || gemini_module()
   end
 
   defp maybe_normalize(vector, model, dims) do

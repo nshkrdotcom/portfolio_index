@@ -38,6 +38,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
   require Logger
   alias Gemini.Types.Response.GenerateContentResponse
   alias PortfolioIndex.Adapters.RateLimiter
+  alias PortfolioIndex.Telemetry.Context
 
   @impl true
   def complete(messages, opts) do
@@ -45,6 +46,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
     RateLimiter.wait(:gemini, :chat)
 
     start_time = System.monotonic_time(:millisecond)
+    sdk = resolve_sdk(opts)
     {model_opt, effective_model} = resolve_generation_model(opts)
     max_tokens = Keyword.get(opts, :max_tokens, 4096)
     temperature = Keyword.get(opts, :temperature, 0.7)
@@ -61,7 +63,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
       |> put_default(:response_mime_type, "text/plain")
       |> put_default(:response_modalities, [:text])
 
-    case generate_with_retry(prompt, gemini_opts, effective_model, _attempt = 1) do
+    case generate_with_retry(prompt, gemini_opts, effective_model, _attempt = 1, sdk) do
       {:ok, response, content} ->
         RateLimiter.record_success(:gemini, :chat)
         usage = extract_usage(response, prompt, content)
@@ -75,7 +77,8 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
             input_tokens: usage.input_tokens,
             output_tokens: usage.output_tokens
           },
-          %{model: effective_model}
+          %{model: effective_model},
+          opts
         )
 
         {:ok,
@@ -100,6 +103,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
 
   @impl true
   def stream(messages, opts) do
+    sdk = resolve_sdk(opts)
     {model_opt, _effective_model} = resolve_generation_model(opts)
     max_tokens = Keyword.get(opts, :max_tokens, 4096)
     temperature = Keyword.get(opts, :temperature, 0.7)
@@ -110,7 +114,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
     # Create a stream using gemini_ex streaming
     stream =
       Stream.resource(
-        fn -> start_streaming(prompt, model_opt, max_tokens, temperature, system_prompt) end,
+        fn -> start_streaming(prompt, model_opt, max_tokens, temperature, system_prompt, sdk) end,
         &continue_streaming/1,
         fn _ -> :ok end
       )
@@ -199,18 +203,18 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
       Map.get(usage, camel_key)
   end
 
-  defp generate_with_retry(prompt, gemini_opts, model, attempt) do
-    case gemini_module().generate(prompt, gemini_opts) do
+  defp generate_with_retry(prompt, gemini_opts, model, attempt, sdk) do
+    case sdk.generate(prompt, gemini_opts) do
       {:ok, response} ->
-        case extract_text(response) do
+        case extract_text(response, sdk) do
           {:ok, text} when is_binary(text) and text != "" ->
             {:ok, response, text}
 
           {:ok, _empty} ->
-            handle_missing_text(response, :empty, prompt, gemini_opts, model, attempt)
+            handle_missing_text(response, :empty, prompt, gemini_opts, model, attempt, sdk)
 
           {:error, reason} ->
-            handle_missing_text(response, reason, prompt, gemini_opts, model, attempt)
+            handle_missing_text(response, reason, prompt, gemini_opts, model, attempt, sdk)
         end
 
       {:error, reason} ->
@@ -218,35 +222,35 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
     end
   end
 
-  defp extract_text(response) do
+  defp extract_text(response, sdk) do
     if is_binary(response) do
       {:ok, response}
     else
-      gemini_module().extract_text(response)
+      sdk.extract_text(response)
     end
   end
 
-  defp handle_missing_text(response, reason, prompt, gemini_opts, model, attempt) do
+  defp handle_missing_text(response, reason, prompt, gemini_opts, model, attempt, sdk) do
     diagnostics = missing_text_diagnostics(response, reason, model)
     Logger.warning("Gemini response missing text: #{inspect(diagnostics)}")
 
     if diagnostics.blocked do
       {:error, {:blocked, diagnostics}}
     else
-      retry_or_fail(prompt, gemini_opts, model, attempt, diagnostics)
+      retry_or_fail(prompt, gemini_opts, model, attempt, diagnostics, sdk)
     end
   end
 
-  defp retry_or_fail(prompt, gemini_opts, model, attempt, _diagnostics) when attempt < 2 do
+  defp retry_or_fail(prompt, gemini_opts, model, attempt, _diagnostics, sdk) when attempt < 2 do
     retry_opts =
       gemini_opts
       |> Keyword.put(:temperature, 0.0)
       |> Keyword.put(:top_p, 1.0)
 
-    generate_with_retry(prompt, retry_opts, model, attempt + 1)
+    generate_with_retry(prompt, retry_opts, model, attempt + 1, sdk)
   end
 
-  defp retry_or_fail(_prompt, _gemini_opts, _model, _attempt, diagnostics) do
+  defp retry_or_fail(_prompt, _gemini_opts, _model, _attempt, diagnostics, _sdk) do
     {:error, {:no_text, diagnostics}}
   end
 
@@ -381,7 +385,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
   defp normalize_finish_reason(:MAX_TOKENS), do: :length
   defp normalize_finish_reason(_), do: :stop
 
-  defp start_streaming(prompt, model_opt, max_tokens, temperature, system_prompt) do
+  defp start_streaming(prompt, model_opt, max_tokens, temperature, system_prompt, sdk) do
     # Start the streaming process
     # gemini_ex uses callbacks for streaming
     parent = self()
@@ -408,7 +412,7 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
           end
         )
 
-      case gemini_module().stream_generate(prompt, opts) do
+      case sdk.stream_generate(prompt, opts) do
         {:ok, _stream_id} -> :ok
         {:error, reason} -> send(parent, {:error, ref, reason})
       end
@@ -449,11 +453,17 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
 
   defp estimate_tokens(_), do: 0
 
+  defp resolve_sdk(opts) do
+    Keyword.get(opts, :sdk) || gemini_module()
+  end
+
   defp gemini_module do
     Application.get_env(:portfolio_index, :gemini_sdk, Gemini)
   end
 
-  defp emit_telemetry(operation, measurements, metadata) do
+  defp emit_telemetry(operation, measurements, metadata, opts) do
+    metadata = Context.merge(metadata, opts)
+
     :telemetry.execute(
       [:portfolio_index, :llm, operation],
       measurements,

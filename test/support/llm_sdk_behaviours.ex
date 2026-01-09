@@ -24,3 +24,10 @@ defmodule PortfolioIndex.Test.GeminiSdkBehaviour do
   @callback stream_generate(String.t(), keyword()) :: {:ok, term()} | {:error, term()}
   @callback embed_content(String.t(), keyword()) :: {:ok, term()} | {:error, term()}
 end
+
+defmodule PortfolioIndex.Test.OllixirSdkBehaviour do
+  @moduledoc "Behaviour for Ollixir SDK mocks in tests."
+
+  @callback init(Req.url() | keyword()) :: term()
+  @callback chat(term(), keyword()) :: {:ok, term()} | {:error, term()}
+end

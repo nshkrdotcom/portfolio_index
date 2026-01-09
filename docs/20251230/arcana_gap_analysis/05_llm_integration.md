@@ -77,7 +77,7 @@ Formal port specification with comprehensive callbacks:
 
 ### PortfolioIndex LLM Adapters
 
-Three provider implementations:
+Six provider implementations:
 
 1. **Anthropic** (`PortfolioIndex.Adapters.LLM.Anthropic`)
    - Uses `claude_agent_sdk`
@@ -90,9 +90,24 @@ Three provider implementations:
    - Retry logic for empty responses
 
 3. **OpenAI** (`PortfolioIndex.Adapters.LLM.OpenAI`)
+   - Uses `openai_ex`
+   - OpenAI Chat Completions API
+   - Stream event transformation
+
+4. **Codex** (`PortfolioIndex.Adapters.LLM.Codex`)
    - Uses `codex_sdk`
    - Thread-based execution support
-   - Stream event transformation
+   - Agentic run streaming
+
+5. **Ollama** (`PortfolioIndex.Adapters.LLM.Ollama`)
+   - Uses `ollixir`
+   - Local model orchestration
+   - OpenAI-style message formatting
+
+6. **vLLM** (`PortfolioIndex.Adapters.LLM.VLLM`)
+   - OpenAI-compatible API via `openai_ex`
+   - Configurable base URL for local clusters
+   - SSE stream parsing
 
 All adapters implement:
 - Token usage normalization

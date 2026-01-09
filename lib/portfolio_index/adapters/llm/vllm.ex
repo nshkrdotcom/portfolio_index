@@ -1,41 +1,19 @@
-defmodule PortfolioIndex.Adapters.LLM.OpenAI do
+defmodule PortfolioIndex.Adapters.LLM.VLLM do
   @behaviour PortfolioCore.Ports.LLM
 
   @moduledoc """
-  OpenAI LLM adapter using openai_ex library for direct OpenAI API access.
-
-  This adapter communicates directly with the OpenAI API using the openai_ex
-  Hex library. It supports chat completions, streaming, and the Responses API.
+  vLLM adapter using the OpenAI-compatible chat completions API.
 
   ## Configuration
 
-      config :portfolio_index, :openai,
-        api_key: System.get_env("OPENAI_API_KEY"),
-        model: "gpt-4o-mini",
-        receive_timeout: 30_000,
-        base_url: nil  # Optional, for proxies or local LLMs
-
-  ## Environment Variables
-
-  - `OPENAI_API_KEY` - Your OpenAI API key (required)
-  - `OPENAI_ORGANIZATION` - Optional organization ID
-
-  ## Manifest
-
-      adapters:
-        llm:
-          module: PortfolioIndex.Adapters.LLM.OpenAI
-          config:
-            model: "gpt-4o-mini"
-
-  ## Example
-
-      messages = [
-        %{role: :system, content: "You are a helpful assistant."},
-        %{role: :user, content: "What is Elixir?"}
-      ]
-
-      {:ok, result} = PortfolioIndex.Adapters.LLM.OpenAI.complete(messages, [])
+      config :portfolio_index, :vllm,
+        base_url: "http://localhost:8000/v1",
+        api_key: System.get_env("VLLM_API_KEY"),
+        model: "llama3",
+        models: ["llama3", "mistral"],
+        model_info: %{
+          "llama3" => %{context_window: 32768, max_output: 4096, supports_tools: true}
+        }
   """
 
   require Logger
@@ -45,46 +23,30 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
   alias PortfolioIndex.Adapters.RateLimiter
   alias PortfolioIndex.Telemetry.Context
 
-  @default_model "gpt-4o-mini"
+  @default_model "llama3"
   @default_timeout 30_000
+  @default_base_url "http://localhost:8000/v1"
 
   @default_model_info %{
-    context_window: 128_000,
-    max_output: 16_384,
+    context_window: 8192,
+    max_output: 2048,
     supports_tools: true
-  }
-
-  @model_info %{
-    "gpt-4o" => %{context_window: 128_000, max_output: 16_384, supports_tools: true},
-    "gpt-4o-mini" => %{context_window: 128_000, max_output: 16_384, supports_tools: true},
-    "gpt-4-turbo" => %{context_window: 128_000, max_output: 4096, supports_tools: true},
-    "gpt-4" => %{context_window: 8_192, max_output: 8_192, supports_tools: true},
-    "gpt-3.5-turbo" => %{context_window: 16_385, max_output: 4096, supports_tools: true},
-    "o1" => %{context_window: 200_000, max_output: 100_000, supports_tools: false},
-    "o1-mini" => %{context_window: 128_000, max_output: 65_536, supports_tools: false},
-    "o3-mini" => %{context_window: 200_000, max_output: 100_000, supports_tools: true}
   }
 
   @impl true
   def complete(messages, opts \\ []) do
-    # Wait for rate limiter before making request
-    RateLimiter.wait(:openai, :chat)
+    RateLimiter.wait(:vllm, :chat)
 
     with {:ok, client} <- build_client(opts),
          {:ok, request} <- build_chat_request(messages, opts),
          {:ok, response} <- Chat.Completions.create(client, request) do
-      RateLimiter.record_success(:openai, :chat)
+      RateLimiter.record_success(:vllm, :chat)
       emit_telemetry(:complete, %{model: response["model"]}, opts)
       {:ok, normalize_response(response)}
     else
-      {:error, :live_api_disabled} = error ->
-        Logger.debug("OpenAI live API disabled; set base_url or allow_live_api to enable.")
-        error
-
       {:error, reason} ->
-        failure_type = detect_failure_type(reason)
-        RateLimiter.record_failure(:openai, :chat, failure_type)
-        Logger.error("OpenAI completion failed: #{inspect(reason)}")
+        RateLimiter.record_failure(:vllm, :chat, detect_failure_type(reason))
+        Logger.error("vLLM completion failed: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -97,11 +59,10 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
 
       case Chat.Completions.create(client, request_with_stream, stream: true) do
         {:ok, stream_response} ->
-          stream = build_stream(stream_response)
-          {:ok, stream}
+          {:ok, build_stream(stream_response)}
 
         {:error, reason} ->
-          Logger.error("OpenAI streaming failed: #{inspect(reason)}")
+          Logger.error("vLLM streaming failed: #{inspect(reason)}")
           {:error, reason}
       end
     else
@@ -112,40 +73,40 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
 
   @impl true
   def supported_models do
-    Map.keys(@model_info)
+    case config()[:models] do
+      models when is_list(models) and models != [] ->
+        models
+
+      model when is_binary(model) ->
+        [model]
+
+      _ ->
+        model = config()[:model] || @default_model
+        [model]
+    end
   end
 
   @impl true
   def model_info(model) do
-    Map.get(@model_info, model, @default_model_info)
+    config()
+    |> Keyword.get(:model_info, %{})
+    |> fetch_model_info(model)
   end
-
-  # Client construction
 
   defp build_client(opts) do
-    if live_api_allowed?(opts) do
-      api_key = Keyword.get(opts, :api_key) || configured_api_key()
+    api_key =
+      Keyword.get(opts, :api_key) ||
+        configured_api_key() ||
+        "vllm"
 
-      if is_nil(api_key) or api_key == "" do
-        {:error, :missing_api_key}
-      else
-        organization = Keyword.get(opts, :organization) || configured_organization()
+    organization = Keyword.get(opts, :organization) || configured_organization()
 
-        client =
-          OpenaiEx.new(api_key, organization)
-          |> apply_client_options(opts)
+    client =
+      OpenaiEx.new(api_key, organization)
+      |> maybe_set_timeout(opts)
+      |> maybe_set_base_url(opts)
 
-        {:ok, client}
-      end
-    else
-      {:error, :live_api_disabled}
-    end
-  end
-
-  defp apply_client_options(client, opts) do
-    client
-    |> maybe_set_timeout(opts)
-    |> maybe_set_base_url(opts)
+    {:ok, client}
   end
 
   defp maybe_set_timeout(client, opts) do
@@ -158,18 +119,18 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
   end
 
   defp maybe_set_base_url(client, opts) do
-    case Keyword.get(opts, :base_url) || configured_base_url() do
-      nil -> client
-      url -> OpenaiEx.with_base_url(client, url)
-    end
+    base_url = Keyword.get(opts, :base_url) || configured_base_url() || @default_base_url
+    OpenaiEx.with_base_url(client, base_url)
   end
-
-  # Request building
 
   defp build_chat_request(messages, opts) do
     model = Keyword.get(opts, :model) || configured_model() || @default_model
     max_tokens = Keyword.get(opts, :max_tokens)
     temperature = Keyword.get(opts, :temperature)
+    top_p = Keyword.get(opts, :top_p)
+    stop = Keyword.get(opts, :stop)
+    tools = Keyword.get(opts, :tools)
+    tool_choice = Keyword.get(opts, :tool_choice)
 
     converted_messages = convert_messages(messages)
 
@@ -180,6 +141,10 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
       )
       |> maybe_put(:max_tokens, max_tokens)
       |> maybe_put(:temperature, temperature)
+      |> maybe_put(:top_p, top_p)
+      |> maybe_put(:stop, stop)
+      |> maybe_put(:tools, tools)
+      |> maybe_put(:tool_choice, tool_choice)
 
     {:ok, request}
   end
@@ -202,12 +167,16 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
     build_chat_message(to_string(role), content)
   end
 
+  defp convert_message(content) when is_binary(content) do
+    build_chat_message("user", content)
+  end
+
+  defp convert_message(_), do: build_chat_message("user", "")
+
   defp build_chat_message("system", content), do: ChatMessage.system(content)
   defp build_chat_message("user", content), do: ChatMessage.user(content)
   defp build_chat_message("assistant", content), do: ChatMessage.assistant(content)
   defp build_chat_message(_, content), do: ChatMessage.user(content)
-
-  # Response normalization
 
   defp normalize_response(response) do
     choice = List.first(response["choices"] || []) || %{}
@@ -236,8 +205,6 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
   defp normalize_finish_reason("content_filter"), do: :content_filter
   defp normalize_finish_reason(nil), do: nil
   defp normalize_finish_reason(_), do: :stop
-
-  # Streaming
 
   defp build_stream(stream_response) do
     stream_response.body_stream
@@ -277,10 +244,16 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
     end
   end
 
-  # Configuration helpers
+  defp config do
+    Application.get_env(:portfolio_index, :vllm, [])
+  end
+
+  defp configured_base_url do
+    config()[:base_url] || System.get_env("VLLM_BASE_URL")
+  end
 
   defp configured_api_key do
-    config()[:api_key] || System.get_env("OPENAI_API_KEY")
+    config()[:api_key] || System.get_env("VLLM_API_KEY")
   end
 
   defp configured_model do
@@ -291,37 +264,15 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
     config()[:receive_timeout]
   end
 
-  defp configured_base_url do
-    config()[:base_url]
-  end
-
   defp configured_organization do
-    config()[:organization] || System.get_env("OPENAI_ORGANIZATION")
+    config()[:organization]
   end
-
-  defp config do
-    Application.get_env(:portfolio_index, :openai, [])
-  end
-
-  defp live_api_allowed?(opts) do
-    base_url = Keyword.get(opts, :base_url) || configured_base_url()
-    allow_live = config()[:allow_live_api] || false
-
-    not test_env?() or not is_nil(base_url) or allow_live
-  end
-
-  defp test_env? do
-    Application.get_env(:portfolio_index, :env, :prod) == :test
-  end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp emit_telemetry(event, metadata, opts) do
     metadata = Context.merge(metadata, opts)
 
     :telemetry.execute(
-      [:portfolio_index, :llm, :openai, event],
+      [:portfolio_index, :llm, :vllm, event],
       %{count: 1},
       metadata
     )
@@ -331,8 +282,7 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
     reason_str = inspect(reason) |> String.downcase()
 
     cond do
-      String.contains?(reason_str, "rate") or String.contains?(reason_str, "429") or
-          String.contains?(reason_str, "quota") ->
+      String.contains?(reason_str, "rate") or String.contains?(reason_str, "429") ->
         :rate_limited
 
       String.contains?(reason_str, "timeout") ->
@@ -342,4 +292,13 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAI do
         :server_error
     end
   end
+
+  defp fetch_model_info(info_map, model) when is_map(info_map) do
+    Map.get(info_map, model) || Map.get(info_map, to_string(model)) || @default_model_info
+  end
+
+  defp fetch_model_info(_, _model), do: @default_model_info
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

@@ -24,6 +24,7 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
   require Logger
 
   alias PortfolioIndex.Adapters.RateLimiter
+  alias PortfolioIndex.Telemetry.Context
 
   @default_model "gpt-4o-mini"
 
@@ -141,7 +142,7 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
 
     case sdk.complete(converted_messages, sdk_opts) do
       {:ok, response} ->
-        emit_telemetry(:complete, %{model: response_model(response)})
+        emit_telemetry(:complete, %{model: response_model(response)}, opts)
         {:ok, normalize_response(response)}
 
       {:error, reason} ->
@@ -157,7 +158,7 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
     with {:ok, thread} <- start_thread(sdk, opts),
          {:ok, result} <- Codex.Thread.run(thread, prompt, build_run_opts(opts)) do
       response = normalize_codex_result(result)
-      emit_telemetry(:complete, %{model: response.model})
+      emit_telemetry(:complete, %{model: response.model}, opts)
       {:ok, response}
     else
       {:error, reason} ->
@@ -612,7 +613,9 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
     Application.get_env(:portfolio_index, :codex_sdk, CodexSdk)
   end
 
-  defp emit_telemetry(event, metadata) do
+  defp emit_telemetry(event, metadata, opts) do
+    metadata = Context.merge(metadata, opts)
+
     :telemetry.execute(
       [:portfolio_index, :llm, :codex, event],
       %{count: 1},
