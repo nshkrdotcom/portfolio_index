@@ -50,7 +50,7 @@ defmodule PortfolioIndex.MixProject do
   defp deps do
     [
       # Core dependency
-      {:portfolio_core, "~> 0.4.0"},
+      {:portfolio_core, path: "../portfolio_core"},
 
       # Resilience primitives (rate limiting, retry, backoff)
       {:foundation, "~> 0.2.0"},

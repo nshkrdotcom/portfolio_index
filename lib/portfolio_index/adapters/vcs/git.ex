@@ -38,11 +38,29 @@ defmodule PortfolioIndex.Adapters.VCS.Git do
 
   @impl true
   def status(repo) do
-    if is_repo?(repo) do
-      do_status(repo)
-    else
-      {:error, {:repository_not_found, repo}}
-    end
+    :telemetry.span(
+      [:portfolio, :vcs, :status],
+      %{repo: repo},
+      fn ->
+        result =
+          if is_repo?(repo) do
+            do_status(repo)
+          else
+            {:error, {:repository_not_found, repo}}
+          end
+
+        measurements =
+          case result do
+            {:ok, status} ->
+              %{files_changed: length(status.changed_files) + length(status.untracked_files)}
+
+            _ ->
+              %{}
+          end
+
+        {result, measurements}
+      end
+    )
   end
 
   @impl true
@@ -64,20 +82,64 @@ defmodule PortfolioIndex.Adapters.VCS.Git do
 
   @impl true
   def diff(repo, from, to) do
-    if is_repo?(repo) do
-      do_diff(repo, from, to)
-    else
-      {:error, {:repository_not_found, repo}}
-    end
+    :telemetry.span(
+      [:portfolio, :vcs, :diff],
+      %{repo: repo, from: from, to: to},
+      fn ->
+        result =
+          if is_repo?(repo) do
+            do_diff(repo, from, to)
+          else
+            {:error, {:repository_not_found, repo}}
+          end
+
+        measurements =
+          case result do
+            {:ok, diff} ->
+              %{
+                additions: diff.stats.additions,
+                deletions: diff.stats.deletions,
+                files_changed: diff.stats.files_changed
+              }
+
+            _ ->
+              %{}
+          end
+
+        {result, measurements}
+      end
+    )
   end
 
   @impl true
   def diff_uncommitted(repo) do
-    if is_repo?(repo) do
-      do_diff_uncommitted(repo)
-    else
-      {:error, {:repository_not_found, repo}}
-    end
+    :telemetry.span(
+      [:portfolio, :vcs, :diff],
+      %{repo: repo, from: "HEAD", to: "working_tree"},
+      fn ->
+        result =
+          if is_repo?(repo) do
+            do_diff_uncommitted(repo)
+          else
+            {:error, {:repository_not_found, repo}}
+          end
+
+        measurements =
+          case result do
+            {:ok, diff} ->
+              %{
+                additions: diff.stats.additions,
+                deletions: diff.stats.deletions,
+                files_changed: diff.stats.files_changed
+              }
+
+            _ ->
+              %{}
+          end
+
+        {result, measurements}
+      end
+    )
   end
 
   @impl true
@@ -118,11 +180,20 @@ defmodule PortfolioIndex.Adapters.VCS.Git do
 
   @impl true
   def commit(repo, message, opts) do
-    if is_repo?(repo) do
-      do_commit(repo, message, opts)
-    else
-      {:error, {:repository_not_found, repo}}
-    end
+    :telemetry.span(
+      [:portfolio, :vcs, :commit],
+      %{repo: repo},
+      fn ->
+        result =
+          if is_repo?(repo) do
+            do_commit(repo, message, opts)
+          else
+            {:error, {:repository_not_found, repo}}
+          end
+
+        {result, %{}}
+      end
+    )
   end
 
   @impl true
@@ -147,20 +218,38 @@ defmodule PortfolioIndex.Adapters.VCS.Git do
 
   @impl true
   def push(repo, opts) do
-    if is_repo?(repo) do
-      do_push(repo, opts)
-    else
-      {:error, {:repository_not_found, repo}}
-    end
+    :telemetry.span(
+      [:portfolio, :vcs, :push],
+      %{repo: repo},
+      fn ->
+        result =
+          if is_repo?(repo) do
+            do_push(repo, opts)
+          else
+            {:error, {:repository_not_found, repo}}
+          end
+
+        {result, %{}}
+      end
+    )
   end
 
   @impl true
   def pull(repo, opts) do
-    if is_repo?(repo) do
-      do_pull(repo, opts)
-    else
-      {:error, {:repository_not_found, repo}}
-    end
+    :telemetry.span(
+      [:portfolio, :vcs, :pull],
+      %{repo: repo},
+      fn ->
+        result =
+          if is_repo?(repo) do
+            do_pull(repo, opts)
+          else
+            {:error, {:repository_not_found, repo}}
+          end
+
+        {result, %{}}
+      end
+    )
   end
 
   @impl true
@@ -465,14 +554,6 @@ defmodule PortfolioIndex.Adapters.VCS.Git do
 
   defp maybe_add_flag(args, true, flag), do: args ++ [flag]
   defp maybe_add_flag(args, _, _), do: args
-
-  defp extract_commit_hash(output) do
-    # Look for commit hash pattern: 40 hexadecimal characters
-    case Regex.run(~r/[0-9a-f]{40}/, output) do
-      [hash] -> {:ok, hash}
-      _ -> :error
-    end
-  end
 
   defp do_log(repo, opts) do
     limit = Keyword.get(opts, :limit)

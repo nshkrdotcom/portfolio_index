@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `PortfolioIndex.Adapters.VCS.Git` adapter implementing VCS port via Git CLI
+  - Full status parsing via `git status --porcelain=v1 -b`
+  - Diff operations with patch and numstat statistics
+  - Staging operations (stage, stage_all, unstage)
+  - Commit creation with options (allow_empty, amend, no_verify)
+  - Log parsing with custom format for commit history
+  - Branch operations (create, delete, checkout)
+  - Push/pull with remote and branch options
+  - Semantic error mapping from Git exit codes
+  - Telemetry instrumentation for status, commit, diff, push, and pull operations
+
 ## [0.4.0] - 2026-01-08
 
 ### Added

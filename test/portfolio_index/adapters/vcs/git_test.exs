@@ -326,4 +326,95 @@ defmodule PortfolioIndex.Adapters.VCS.GitTest do
       assert {:error, {:invalid_ref, "nonexistent"}} = Git.show(repo, "nonexistent")
     end
   end
+
+  describe "telemetry" do
+    test "status emits start and stop events", %{repo: repo} do
+      test_pid = self()
+
+      handler = fn event, measurements, metadata, _config ->
+        send(test_pid, {:telemetry, event, measurements, metadata})
+      end
+
+      handler_id = "test-status-#{:erlang.unique_integer([:positive])}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:portfolio, :vcs, :status, :start],
+          [:portfolio, :vcs, :status, :stop]
+        ],
+        handler,
+        nil
+      )
+
+      {:ok, _status} = Git.status(repo)
+
+      assert_received {:telemetry, [:portfolio, :vcs, :status, :start], _, %{repo: ^repo}}
+      assert_received {:telemetry, [:portfolio, :vcs, :status, :stop], measurements, metadata}
+      assert is_integer(measurements.duration)
+      assert Map.has_key?(metadata, :files_changed)
+
+      :telemetry.detach(handler_id)
+    end
+
+    test "commit emits start and stop events", %{repo: repo} do
+      test_pid = self()
+
+      handler = fn event, measurements, metadata, _config ->
+        send(test_pid, {:telemetry, event, measurements, metadata})
+      end
+
+      handler_id = "test-commit-#{:erlang.unique_integer([:positive])}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:portfolio, :vcs, :commit, :start],
+          [:portfolio, :vcs, :commit, :stop]
+        ],
+        handler,
+        nil
+      )
+
+      file = Path.join(repo, "telemetry_test.txt")
+      File.write!(file, "Telemetry test content\n")
+      System.cmd("git", ["add", "telemetry_test.txt"], cd: repo)
+
+      {:ok, _hash} = Git.commit(repo, "Telemetry test commit", [])
+
+      assert_received {:telemetry, [:portfolio, :vcs, :commit, :start], _, %{repo: ^repo}}
+      assert_received {:telemetry, [:portfolio, :vcs, :commit, :stop], measurements, _}
+      assert is_integer(measurements.duration)
+
+      :telemetry.detach(handler_id)
+    end
+
+    test "diff emits start and stop events", %{repo: repo} do
+      test_pid = self()
+
+      handler = fn event, measurements, metadata, _config ->
+        send(test_pid, {:telemetry, event, measurements, metadata})
+      end
+
+      handler_id = "test-diff-#{:erlang.unique_integer([:positive])}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:portfolio, :vcs, :diff, :start],
+          [:portfolio, :vcs, :diff, :stop]
+        ],
+        handler,
+        nil
+      )
+
+      {:ok, _diff} = Git.diff_uncommitted(repo)
+
+      assert_received {:telemetry, [:portfolio, :vcs, :diff, :start], _, %{repo: ^repo}}
+      assert_received {:telemetry, [:portfolio, :vcs, :diff, :stop], measurements, _}
+      assert is_integer(measurements.duration)
+
+      :telemetry.detach(handler_id)
+    end
+  end
 end
