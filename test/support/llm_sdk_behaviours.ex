@@ -31,3 +31,13 @@ defmodule PortfolioIndex.Test.OllixirSdkBehaviour do
   @callback init(Req.url() | keyword()) :: term()
   @callback chat(term(), keyword()) :: {:ok, term()} | {:error, term()}
 end
+
+defmodule PortfolioIndex.Test.VLLMSdkBehaviour do
+  @moduledoc "Behaviour for VLLM SDK mocks in tests."
+
+  @callback run((-> term()), keyword()) :: term()
+  @callback llm!(String.t(), keyword()) :: term()
+  @callback sampling_params!(keyword()) :: term()
+  @callback chat!(term(), list(), keyword()) :: list()
+  @callback attr!(term(), String.t()) :: term()
+end

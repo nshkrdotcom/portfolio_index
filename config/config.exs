@@ -1,5 +1,10 @@
 import Config
 
+# Skip SnakeBridge compile-time introspection unless explicitly enabled.
+if System.get_env("SNAKEBRIDGE_SKIP") in [nil, ""] do
+  System.put_env("SNAKEBRIDGE_SKIP", "1")
+end
+
 # Base configuration for PortfolioIndex
 
 config :portfolio_index,

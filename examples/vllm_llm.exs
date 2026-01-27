@@ -1,12 +1,12 @@
 # vLLM LLM Adapter Example
 #
 # Requirements:
-#   - vLLM running with OpenAI-compatible API (default: http://localhost:8000/v1)
+#   - CUDA-capable NVIDIA GPU
+#   - Python runtime via SnakeBridge: mix snakebridge.setup
 #
 # Optional:
-#   - VLLM_BASE_URL (default: http://localhost:8000/v1)
-#   - VLLM_MODEL (default: llama3)
-#   - VLLM_API_KEY (optional)
+#   - VLLM_MODEL (default: Qwen/Qwen2-0.5B-Instruct)
+#   - HF_TOKEN (for gated HuggingFace models)
 #
 # Usage:
 #   mix run examples/vllm_llm.exs
@@ -14,11 +14,16 @@
 alias PortfolioIndex.Adapters.LLM.VLLM
 
 IO.puts("=== vLLM LLM Adapter Example ===\n")
+IO.puts("Note: vLLM requires a CUDA-capable NVIDIA GPU.\n")
 
-base_url = System.get_env("VLLM_BASE_URL") || "http://localhost:8000/v1"
-model = System.get_env("VLLM_MODEL") || "llama3"
+model = System.get_env("VLLM_MODEL") || "Qwen/Qwen2-0.5B-Instruct"
 
-opts = [model: model, base_url: base_url, max_tokens: 128, temperature: 0.2]
+opts = [
+  model: model,
+  max_tokens: 128,
+  temperature: 0.2,
+  llm: [max_model_len: 2048, gpu_memory_utilization: 0.8]
+]
 
 messages = [
   %{role: :user, content: "Say hello in one short sentence."}
@@ -35,6 +40,7 @@ case VLLM.complete(messages, opts) do
 end
 
 IO.puts("\n--- Streaming Completion ---")
+IO.puts("(Streaming is returned as a single chunk for vLLM.)\n")
 
 stream_messages = [
   %{role: :user, content: "Count from 1 to 5, separating with commas."}

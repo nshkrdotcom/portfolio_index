@@ -40,7 +40,8 @@ echo "9. Ollama LLM"
 mix run examples/ollama_llm.exs
 echo ""
 
-echo "vLLM example skipped by default. Run: mix run examples/vllm_llm.exs"
+echo "vLLM example skipped by default (requires CUDA + mix snakebridge.setup)."
+echo "Run manually: mix run examples/vllm_llm.exs"
 echo ""
 
 echo "10. Hybrid RAG"

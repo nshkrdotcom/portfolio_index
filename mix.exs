@@ -69,6 +69,7 @@ defmodule PortfolioIndex.MixProject do
       {:claude_agent_sdk, "~> 0.7.6"},
       {:codex_sdk, "~> 0.5.0"},
       {:ollixir, "~> 0.1.0"},
+      {:vllm, "~> 0.1.0"},
       {:openai_ex, "~> 0.9.18"},
 
       # HTTP clients for APIs

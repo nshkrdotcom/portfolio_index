@@ -9,7 +9,7 @@ This directory contains runnable scripts demonstrating Portfolio Index adapters 
 - Neo4j running
 - Provider API keys configured (Gemini, Claude, OpenAI, Codex)
 - Ollama running locally for the Ollama examples
-- vLLM optional (not run by default)
+- vLLM optional (not run by default, requires NVIDIA GPU + SnakeBridge)
 
 Set environment variables as needed:
 
@@ -19,7 +19,7 @@ export ANTHROPIC_API_KEY=your-key
 export OPENAI_API_KEY=your-key
 export CODEX_API_KEY=your-key  # or OPENAI_API_KEY for Codex SDK
 export OLLAMA_BASE_URL=http://localhost:11434/api
-export VLLM_BASE_URL=http://localhost:8000/v1
+export HF_TOKEN=your-huggingface-token # optional, for gated models
 ```
 
 ## Ollama setup
@@ -52,6 +52,15 @@ mix run examples/gemini_llm.exs
 
 ```bash
 ./examples/run_all.sh
+```
+
+## vLLM setup
+
+The vLLM example uses the `vllm` Elixir library (SnakeBridge) and requires a CUDA-capable GPU.
+
+```bash
+mix deps.get
+mix snakebridge.setup
 ```
 
 Note: `run_all.sh` skips the vLLM example by default. Run it manually when vLLM is available:

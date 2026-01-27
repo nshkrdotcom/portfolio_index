@@ -23,7 +23,7 @@ Portfolio Index implements the port specifications defined in [Portfolio Core](h
 - **Graph Store Adapters** - Neo4j via boltx + community operations
 - **Embedding Providers** - Google Gemini
 - **LLM Providers** - Google Gemini, Anthropic Claude, OpenAI (openai_ex), Codex (codex_sdk),
-  Ollama, vLLM (OpenAI-compatible)
+  Ollama, vLLM (SnakeBridge)
 - **Broadway Pipelines** - Ingestion and embedding with backpressure
 - **RAG Strategies** - Hybrid (RRF fusion), Self-RAG (self-critique), GraphRAG, Agentic
 
@@ -207,8 +207,7 @@ alias PortfolioIndex.RAG.Strategies.SelfRAG
 | `OLLAMA_HOST` | Ollama host URL | `http://localhost:11434` |
 | `OLLAMA_BASE_URL` | Ollama base URL (override) | `http://localhost:11434/api` |
 | `OLLAMA_API_KEY` | Ollama API key (optional) | - |
-| `VLLM_BASE_URL` | vLLM base URL | `http://localhost:8000/v1` |
-| `VLLM_API_KEY` | vLLM API key (optional) | - |
+| `HF_TOKEN` | HuggingFace token (gated models) | - |
 
 ### Local Model Setup
 
@@ -230,7 +229,12 @@ Or run:
 mix run examples/ollama_setup.exs
 ```
 
-The vLLM example expects a vLLM server running at `VLLM_BASE_URL`.
+vLLM uses the `vllm` Elixir library (SnakeBridge) and requires a CUDA-capable GPU.
+
+```bash
+mix deps.get
+mix snakebridge.setup
+```
 
 ### Config Files
 
@@ -281,7 +285,7 @@ config :boltx, Boltx,
 - **OpenAI** - GPT-4o-mini (low-cost default) via openai_ex
 - **Codex** - OpenAI Codex SDK with agentic support
 - **Ollama** - Local models via ollixir
-- **vLLM** - OpenAI-compatible endpoints via openai_ex
+- **vLLM** - Local GPU inference via vllm (SnakeBridge)
 
 | Adapter | Provider | Model |
 |---------|----------|-------|
@@ -290,7 +294,7 @@ config :boltx, Boltx,
 | `OpenAI` | OpenAI | gpt-4o-mini (default) |
 | `Codex` | OpenAI | Codex SDK default |
 | `Ollama` | Ollama | llama3.2 (default) |
-| `VLLM` | vLLM | llama3 (default) |
+| `VLLM` | vLLM | Qwen/Qwen2-0.5B-Instruct (default) |
 
 ### Chunker
 

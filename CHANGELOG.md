@@ -18,11 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Streaming support with delta normalization
   - Rate limiting and telemetry instrumentation
   - Configurable model info and supported models list
-- `PortfolioIndex.Adapters.LLM.VLLM` - vLLM adapter for OpenAI-compatible endpoints
-  - Uses openai_ex for OpenAI-compatible API
-  - Configurable base URL for local clusters
-  - SSE stream parsing with finish reason normalization
-  - Rate limiting and failure detection
+- `PortfolioIndex.Adapters.LLM.VLLM` - vLLM adapter using the `vllm` SnakeBridge library
+  - Local GPU inference via Python runtime
+  - Configurable model, sampling, and run options
+  - Rate limiting and telemetry instrumentation
 
 #### Local Embeddings Support
 - `PortfolioIndex.Adapters.Embedder.Ollama` - Ollama embeddings adapter using ollixir
@@ -65,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed claude_agent_sdk from path to hex: `~> 0.7.6`
 - Changed codex_sdk from path to hex: `~> 0.5.0`
 - Added ollixir `~> 0.1.0` for Ollama integration
+- Added vllm `~> 0.1.0` for local GPU inference via SnakeBridge
 
 ## [0.3.1] - 2025-12-30
 
