@@ -52,6 +52,9 @@ defmodule PortfolioIndex.MixProject do
       # Core dependency
       {:portfolio_core, path: "../portfolio_core"},
 
+      # Agent session management
+      {:agent_session_manager, path: "../agent_session_manager"},
+
       # Resilience primitives (rate limiting, retry, backoff)
       {:foundation, "~> 0.2.0"},
 
@@ -66,8 +69,8 @@ defmodule PortfolioIndex.MixProject do
 
       # AI/LLM (path for local dev)
       {:gemini_ex, "~> 0.8.8"},
-      {:claude_agent_sdk, "~> 0.7.6"},
-      {:codex_sdk, "~> 0.5.0"},
+      {:claude_agent_sdk, "~> 0.9.1"},
+      {:codex_sdk, "~> 0.6.0"},
       {:ollixir, "~> 0.1.0"},
       {:vllm, "~> 0.1.0", optional: true},
       {:openai_ex, "~> 0.9.18"},
@@ -92,7 +95,7 @@ defmodule PortfolioIndex.MixProject do
       {:nimble_options, "~> 1.1"},
 
       # Dev/test only
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mox, "~> 1.1", only: :test},

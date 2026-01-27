@@ -78,7 +78,18 @@ defmodule PortfolioIndex.Telemetry do
       summary("portfolio_index.rag.retrieve.duration",
         unit: {:native, :millisecond}
       ),
-      summary("portfolio_index.rag.retrieve.items_returned")
+      summary("portfolio_index.rag.retrieve.items_returned"),
+
+      # Agent session metrics
+      counter("portfolio_index.agent_session.start_session.count"),
+      counter("portfolio_index.agent_session.execute.count"),
+      counter("portfolio_index.agent_session.cancel.count"),
+      counter("portfolio_index.agent_session.end_session.count"),
+      summary("portfolio_index.agent_session.execute.duration",
+        unit: {:native, :millisecond}
+      ),
+      summary("portfolio_index.agent_session.execute.input_tokens"),
+      summary("portfolio_index.agent_session.execute.output_tokens")
     ]
   end
 
@@ -94,7 +105,9 @@ defmodule PortfolioIndex.Telemetry do
       [:portfolio_index, :vector_store, :search, :stop],
       [:portfolio_index, :embedder, :embed, :stop],
       [:portfolio_index, :llm, :complete, :stop],
-      [:portfolio_index, :rag, :retrieve, :stop]
+      [:portfolio_index, :rag, :retrieve, :stop],
+      [:portfolio_index, :agent_session, :execute, :stop],
+      [:portfolio_index, :agent_session, :start_session, :stop]
     ]
 
     :telemetry.attach_many(

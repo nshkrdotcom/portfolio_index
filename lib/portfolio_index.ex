@@ -107,6 +107,14 @@ defmodule PortfolioIndex do
     )
   end
 
+  def adapter(:agent_session) do
+    Application.get_env(
+      :portfolio_index,
+      :agent_session_adapter,
+      PortfolioIndex.Adapters.AgentSession.Claude
+    )
+  end
+
   @doc """
   Check if all required services are healthy.
 
