@@ -76,7 +76,7 @@ Add `portfolio_index` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:portfolio_index, "~> 0.4.0"}
+    {:portfolio_index, "~> 0.5.0"}
   ]
 end
 ```
@@ -282,7 +282,7 @@ config :boltx, Boltx,
 
 - **Gemini** - gemini-flash-lite-latest with streaming
 - **Anthropic** - Claude via claude_agent_sdk
-- **OpenAI** - GPT-4o-mini (low-cost default) via openai_ex
+- **OpenAI** - GPT-4o-mini (default) via openai_ex, plus GPT-5 via Responses API
 - **Codex** - OpenAI Codex SDK with agentic support
 - **Ollama** - Local models via ollixir
 - **vLLM** - Local GPU inference via vllm (SnakeBridge)
@@ -291,7 +291,7 @@ config :boltx, Boltx,
 |---------|----------|-------|
 | `Gemini` | Google | gemini-flash-lite-latest |
 | `Anthropic` | Anthropic | Claude (SDK default) |
-| `OpenAI` | OpenAI | gpt-4o-mini (default) |
+| `OpenAI` | OpenAI | gpt-4o-mini (default), GPT-5 via Responses |
 | `Codex` | OpenAI | Codex SDK default |
 | `Ollama` | Ollama | llama3.2 (default) |
 | `VLLM` | vLLM | Qwen/Qwen2-0.5B-Instruct (default) |
@@ -848,9 +848,27 @@ Attach handlers for monitoring:
 4. **Use metadata filters** - Reduces search space before vector comparison
 5. **Set appropriate `min_score`** - Filters low-quality matches early
 
-## Documentation
+## Guides
 
-- [HexDocs](https://hexdocs.pm/portfolio_index)
+Comprehensive guides are available on [HexDocs](https://hexdocs.pm/portfolio_index):
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](guides/getting-started.md) | Installation, first search, first pipeline |
+| [Vector Stores](guides/vector-stores.md) | Pgvector, Memory store, hybrid search, collections |
+| [Graph Stores](guides/graph-stores.md) | Neo4j, schema management, traversal |
+| [Embedders](guides/embedders.md) | Gemini, OpenAI, Ollama, Bumblebee, custom |
+| [LLM Adapters](guides/llm-adapters.md) | OpenAI (Responses API + GPT-5), Claude, Codex, Gemini, Ollama, vLLM |
+| [RAG Strategies](guides/rag-strategies.md) | Hybrid, Self-RAG, GraphRAG, Agentic pipeline |
+| [Chunkers](guides/chunkers.md) | Recursive, Character, Sentence, Paragraph, Semantic |
+| [Pipelines](guides/pipelines.md) | Broadway ingestion and embedding |
+| [Agent Sessions](guides/agent-sessions.md) | Claude and Codex session management |
+| [Version Control](guides/vcs.md) | Git adapter for programmatic VCS |
+| [Telemetry](guides/telemetry.md) | Instrumentation, logging, lineage context |
+| [Evaluation](guides/evaluation.md) | IR metrics, test case generation, run tracking |
+| [Maintenance](guides/maintenance.md) | Re-embedding, diagnostics, mix tasks |
+| [Configuration](guides/configuration.md) | Environment variables, application config |
+| [Testing](guides/testing.md) | Mocks, fixtures, integration test patterns |
 
 ## Related Packages
 

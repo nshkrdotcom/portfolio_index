@@ -1,7 +1,7 @@
 defmodule PortfolioIndex.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.5.0"
   @source_url "https://github.com/nshkrdotcom/portfolio_index"
 
   def project do
@@ -53,7 +53,7 @@ defmodule PortfolioIndex.MixProject do
       {:portfolio_core, path: "../portfolio_core"},
 
       # Agent session management
-      {:agent_session_manager, path: "../agent_session_manager"},
+      {:agent_session_manager, "~> 0.1.1"},
 
       # Resilience primitives (rate limiting, retry, backoff)
       {:foundation, "~> 0.2.0"},
@@ -68,11 +68,11 @@ defmodule PortfolioIndex.MixProject do
       {:boltx, "~> 0.0.6"},
 
       # AI/LLM (path for local dev)
-      {:gemini_ex, "~> 0.8.8"},
-      {:claude_agent_sdk, "~> 0.9.1"},
+      {:gemini_ex, "~> 0.9.1"},
+      {:claude_agent_sdk, "~> 0.9.2"},
       {:codex_sdk, "~> 0.6.0"},
       {:ollixir, "~> 0.1.0"},
-      {:vllm, "~> 0.1.0", optional: true},
+      {:vllm, "~> 0.2.1", optional: true},
       {:openai_ex, "~> 0.9.18"},
 
       # HTTP clients for APIs
@@ -101,7 +101,7 @@ defmodule PortfolioIndex.MixProject do
       {:mox, "~> 1.1", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:bypass, "~> 2.1", only: :test},
-      {:supertester, "~> 0.5.0", only: :test}
+      {:supertester, "~> 0.5.1", only: :test}
     ]
   end
 
@@ -115,7 +115,7 @@ defmodule PortfolioIndex.MixProject do
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       maintainers: ["NSHKR"],
-      files: ~w(lib assets .formatter.exs mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(lib guides assets .formatter.exs mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
@@ -126,17 +126,78 @@ defmodule PortfolioIndex.MixProject do
       source_ref: "v#{@version}",
       assets: %{"assets" => "assets"},
       logo: "assets/portfolio_index.svg",
-      extras: ["README.md", "CHANGELOG.md", "LICENSE"],
+      extras: [
+        "README.md",
+        "guides/getting-started.md",
+        "guides/vector-stores.md",
+        "guides/graph-stores.md",
+        "guides/embedders.md",
+        "guides/llm-adapters.md",
+        "guides/rag-strategies.md",
+        "guides/chunkers.md",
+        "guides/pipelines.md",
+        "guides/agent-sessions.md",
+        "guides/vcs.md",
+        "guides/telemetry.md",
+        "guides/evaluation.md",
+        "guides/maintenance.md",
+        "guides/configuration.md",
+        "guides/testing.md",
+        "CHANGELOG.md",
+        "LICENSE"
+      ],
+      groups_for_extras: [
+        "Getting Started": [
+          "README.md",
+          "guides/getting-started.md",
+          "guides/configuration.md"
+        ],
+        Adapters: [
+          "guides/vector-stores.md",
+          "guides/graph-stores.md",
+          "guides/embedders.md",
+          "guides/llm-adapters.md",
+          "guides/chunkers.md"
+        ],
+        "RAG & Retrieval": [
+          "guides/rag-strategies.md",
+          "guides/pipelines.md",
+          "guides/evaluation.md"
+        ],
+        "Agent & VCS": [
+          "guides/agent-sessions.md",
+          "guides/vcs.md"
+        ],
+        Operations: [
+          "guides/telemetry.md",
+          "guides/maintenance.md",
+          "guides/testing.md"
+        ],
+        "Release Notes": [
+          "CHANGELOG.md",
+          "LICENSE"
+        ]
+      ],
       groups_for_modules: [
         "Vector Store Adapters": ~r/PortfolioIndex\.Adapters\.VectorStore\./,
+        "Vector Store Utilities": ~r/PortfolioIndex\.VectorStore\./,
         "Graph Store Adapters": ~r/PortfolioIndex\.Adapters\.GraphStore\./,
         Embedders: ~r/PortfolioIndex\.Adapters\.Embedder\./,
+        "Embedder Utilities": ~r/PortfolioIndex\.Embedder\./,
         LLMs: ~r/PortfolioIndex\.Adapters\.LLM\./,
         Chunkers: ~r/PortfolioIndex\.Adapters\.Chunker\./,
         Rerankers: ~r/PortfolioIndex\.Adapters\.Reranker\./,
+        "Agent Sessions": ~r/PortfolioIndex\.Adapters\.AgentSession\./,
+        "Version Control": ~r/PortfolioIndex\.Adapters\.VCS\./,
+        "Query Processing": ~r/PortfolioIndex\.Adapters\.Query/,
+        "Collection Selection": ~r/PortfolioIndex\.Adapters\.CollectionSelector\./,
         Pipelines: ~r/PortfolioIndex\.Pipelines\./,
         "RAG Strategies": ~r/PortfolioIndex\.RAG\./,
-        GraphRAG: ~r/PortfolioIndex\.GraphRAG\./
+        GraphRAG: ~r/PortfolioIndex\.GraphRAG\./,
+        Schemas: ~r/PortfolioIndex\.Schemas\./,
+        Evaluation: ~r/PortfolioIndex\.Evaluation/,
+        Maintenance: ~r/PortfolioIndex\.Maintenance/,
+        Telemetry: ~r/PortfolioIndex\.Telemetry/
       ]
     ]
   end

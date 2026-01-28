@@ -97,11 +97,23 @@ defmodule PortfolioIndex.Adapters.VectorStore.PgvectorTest do
     end
 
     @tag :integration
-    test "returns error for duplicate index" do
+    test "is idempotent for duplicate index with same dimensions" do
       index_id = unique_index_id()
 
       assert :ok = Pgvector.create_index(index_id, %{dimensions: 768})
-      assert {:error, :already_exists} = Pgvector.create_index(index_id, %{dimensions: 768})
+      assert :ok = Pgvector.create_index(index_id, %{dimensions: 768})
+
+      Pgvector.delete_index(index_id)
+    end
+
+    @tag :integration
+    test "returns error for duplicate index with different dimensions" do
+      index_id = unique_index_id()
+
+      assert :ok = Pgvector.create_index(index_id, %{dimensions: 768})
+
+      assert {:error, {:dimension_mismatch, _}} =
+               Pgvector.create_index(index_id, %{dimensions: 384})
 
       Pgvector.delete_index(index_id)
     end

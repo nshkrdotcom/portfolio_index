@@ -25,7 +25,7 @@ defmodule PortfolioIndex.Adapters.AgentSession.CodexTest do
     test "returns ok tuple with capability list" do
       assert {:ok, capabilities} = Codex.capabilities()
       assert is_list(capabilities)
-      assert capabilities != []
+      assert [_ | _] = capabilities
     end
 
     test "includes expected capabilities" do

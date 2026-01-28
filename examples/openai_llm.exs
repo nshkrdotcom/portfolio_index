@@ -22,10 +22,11 @@ messages = [
   %{role: :user, content: "Explain Elixir's concurrency model in 2-3 sentences."}
 ]
 
-case OpenAI.complete(messages, model: "gpt-4o-mini", max_tokens: 150) do
+case OpenAI.complete(messages, model: "gpt-5-nano", api: :responses, max_tokens: 150) do
   {:ok, result} ->
     IO.puts("Model: #{result.model}")
     IO.puts("Tokens: #{result.usage.input_tokens} in / #{result.usage.output_tokens} out")
+    IO.puts("Response ID: #{result.response_id}")
     IO.puts("\nResponse:\n#{result.content}")
 
   {:error, reason} ->
@@ -41,7 +42,7 @@ stream_messages = [
   }
 ]
 
-case OpenAI.stream(stream_messages, model: "gpt-4o-mini", max_tokens: 100) do
+case OpenAI.stream(stream_messages, model: "gpt-5-nano", api: :responses, max_tokens: 100) do
   {:ok, stream} ->
     IO.write("Streaming: ")
 
@@ -67,7 +68,7 @@ IO.puts("\n--- Model Information ---")
 
 IO.puts("Supported models: #{Enum.join(OpenAI.supported_models(), ", ")}")
 
-info = OpenAI.model_info("gpt-4o-mini")
-IO.puts("gpt-4o-mini context window: #{info.context_window}")
-IO.puts("gpt-4o-mini max output: #{info.max_output}")
-IO.puts("gpt-4o-mini supports tools: #{info.supports_tools}")
+info = OpenAI.model_info("gpt-5-nano")
+IO.puts("gpt-5-nano context window: #{info.context_window}")
+IO.puts("gpt-5-nano max output: #{info.max_output}")
+IO.puts("gpt-5-nano supports tools: #{info.supports_tools}")

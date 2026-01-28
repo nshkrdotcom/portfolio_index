@@ -86,7 +86,8 @@ defmodule PortfolioIndex.Adapters.LLM.Gemini do
            content: content,
            model: effective_model,
            usage: usage,
-           finish_reason: extract_finish_reason(response)
+           finish_reason: extract_finish_reason(response),
+           response_id: nil
          }}
 
       {:error, :rate_limited} = error ->

@@ -287,7 +287,8 @@ defmodule PortfolioIndex.Adapters.LLM.Codex do
       content: codex_content(result),
       model: codex_model(result),
       usage: normalize_usage(result.usage),
-      finish_reason: codex_finish_reason(result.events)
+      finish_reason: codex_finish_reason(result.events),
+      response_id: nil
     }
   end
 

@@ -9,7 +9,7 @@ defmodule PortfolioIndex.Adapters.VCS.GitTest do
     File.mkdir_p!(tmp_dir)
 
     # Initialize git repo
-    System.cmd("git", ["init"], cd: tmp_dir)
+    System.cmd("git", ["init", "-b", "main"], cd: tmp_dir)
     System.cmd("git", ["config", "user.name", "Test User"], cd: tmp_dir)
     System.cmd("git", ["config", "user.email", "test@example.com"], cd: tmp_dir)
 
@@ -103,8 +103,7 @@ defmodule PortfolioIndex.Adapters.VCS.GitTest do
   describe "current_branch/1" do
     test "returns current branch name", %{repo: repo} do
       assert {:ok, branch} = Git.current_branch(repo)
-      # Default branch is typically "master" or "main"
-      assert branch in ["master", "main"]
+      assert branch == "main"
     end
 
     test "returns error for non-repository" do

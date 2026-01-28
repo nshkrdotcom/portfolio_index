@@ -1,6 +1,21 @@
 # Configure ExUnit
 ExUnit.start(exclude: [:integration, :skip, :live])
 
+# Ensure the test database exists and is migrated before running tests.
+{:ok, _} = Application.ensure_all_started(:ecto_sql)
+{:ok, _} = Application.ensure_all_started(:postgrex)
+
+case PortfolioIndex.Repo.__adapter__().storage_up(PortfolioIndex.Repo.config()) do
+  :ok -> :ok
+  {:error, :already_up} -> :ok
+  {:error, reason} -> raise "Failed to create test database: #{inspect(reason)}"
+end
+
+{:ok, _, _} =
+  Ecto.Migrator.with_repo(PortfolioIndex.Repo, fn repo ->
+    Ecto.Migrator.run(repo, :up, all: true)
+  end)
+
 # Define Mox mocks for all ports
 Mox.defmock(PortfolioIndex.Mocks.VectorStore, for: PortfolioCore.Ports.VectorStore)
 Mox.defmock(PortfolioIndex.Mocks.GraphStore, for: PortfolioCore.Ports.GraphStore)

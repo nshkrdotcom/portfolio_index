@@ -274,8 +274,15 @@ defmodule PortfolioIndex.Schemas.Queries do
   @spec soft_delete_document(Ecto.Repo.t(), Document.t()) ::
           {:ok, Document.t()} | {:error, term()}
   def soft_delete_document(repo, document) do
-    document
-    |> Document.status_changeset(:deleted)
-    |> repo.update()
+    case document |> Document.status_changeset(:deleted) |> repo.update() do
+      {:ok, updated} ->
+        case repo.reload(updated) do
+          nil -> {:ok, updated}
+          reloaded -> {:ok, reloaded}
+        end
+
+      {:error, _} = error ->
+        error
+    end
   end
 end

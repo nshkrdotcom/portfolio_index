@@ -25,7 +25,7 @@ defmodule PortfolioIndex.Adapters.AgentSession.ClaudeTest do
     test "returns ok tuple with capability list" do
       assert {:ok, capabilities} = Claude.capabilities()
       assert is_list(capabilities)
-      assert capabilities != []
+      assert [_ | _] = capabilities
     end
 
     test "includes expected capabilities" do

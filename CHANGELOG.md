@@ -7,8 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-01-28
+
 ### Added
-- `PortfolioIndex.Adapters.VCS.Git` adapter implementing VCS port via Git CLI
+
+#### OpenAI Responses API & GPT-5 Support
+- `PortfolioIndex.Adapters.LLM.OpenAI` - Full OpenAI Responses API integration
+  - Automatic API selection: GPT-5 models use Responses API, others use Chat Completions
+  - Explicit API override via `api: :responses` or `api: :chat_completions` option
+  - `gpt-5-nano` model support (400k context window, 128k max output)
+  - Responses API streaming with delta event handling
+  - `response_id` tracking for conversation continuity via `previous_response_id`
+  - `store: true` option for server-side response persistence
+  - `max_output_tokens` / `max_completion_tokens` support for newer models
+  - Automatic `max_tokens` → `max_completion_tokens` conversion for models that require it (GPT-5, o-series)
+  - System message extraction into `instructions` field for Responses API
+  - Response normalization across both API surfaces (content, usage, finish_reason)
+
+#### Agent Session Adapters
+- `PortfolioIndex.Adapters.AgentSession.Claude` - Claude agent session adapter
+  - Implements `PortfolioCore.Ports.AgentSession` behaviour
+  - Delegates to `AgentSessionManager.SessionManager` with Claude provider
+  - Rate limiting via `PortfolioIndex.Adapters.RateLimiter`
+  - Telemetry spans for start_session, execute, cancel, and end_session
+  - Input normalization (map, string, or arbitrary data)
+  - Token usage and turn count tracking in telemetry measurements
+- `PortfolioIndex.Adapters.AgentSession.Codex` - Codex agent session adapter
+  - Same architecture as Claude adapter with Codex provider backend
+  - Full session lifecycle management (start, execute, cancel, end)
+  - Rate limiting and telemetry instrumentation
+- `PortfolioIndex.Adapters.AgentSession.Config` - Shared configuration resolver
+  - Application config-based store and adapter resolution
+  - Per-provider adapter configuration with defaults
+  - Runtime override support via keyword options
+
+#### Git VCS Adapter
+- `PortfolioIndex.Adapters.VCS.Git` - Git adapter implementing VCS port
   - Full status parsing via `git status --porcelain=v1 -b`
   - Diff operations with patch and numstat statistics
   - Staging operations (stage, stage_all, unstage)
@@ -18,6 +52,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Push/pull with remote and branch options
   - Semantic error mapping from Git exit codes
   - Telemetry instrumentation for status, commit, diff, push, and pull operations
+
+#### LLM Adapter Normalization
+- All LLM adapters (Anthropic, Codex, Gemini, Ollama) updated with consistent
+  `@behaviour PortfolioCore.Ports.LLM` declaration
+- Standardized `@impl true` annotations across all LLM adapter callbacks
+
+#### Adapter Registry
+- `PortfolioIndex.adapter(:agent_session)` - Agent session adapter resolution
+  with configurable default (Claude)
+
+### Changed
+
+- OpenAI adapter refactored to dual-API architecture (Chat Completions + Responses)
+- vLLM adapter rewritten for SnakeBridge native integration (replaces HTTP API approach)
+  - Uses in-process Python runtime via `VLLM.generate/2`
+  - Configurable model loading with `max_model_len`, `gpu_memory_utilization` options
+  - Streaming returns single-chunk response (vLLM limitation)
+- SnakeBridge compile-time introspection skipped by default via `SNAKEBRIDGE_SKIP` env var
+- OpenAI example updated to use `gpt-5-nano` model and Responses API
+- vLLM example updated for SnakeBridge setup (CUDA + `mix snakebridge.setup`)
+- `Schemas.Queries.similarity_search/3` supports configurable distance operator
+
+### Dependencies
+
+- Updated `claude_agent_sdk` to `~> 0.9.2`
+- Updated `codex_sdk` to `~> 0.6.0`
+- Updated `gemini_ex` to `~> 0.9.1`
+- Updated `openai_ex` to `~> 0.9.18`
+- Updated `vllm` to `~> 0.2.1`
+- Added `agent_session_manager` `~> 0.1.1`
+
+### Tests
+
+- Added `ClaudeAgentSessionTest` (291 lines) covering session lifecycle, telemetry, and error handling
+- Added `CodexAgentSessionTest` (280 lines) with full session management coverage
+- Added `AgentSessionConfigTest` (90 lines) for configuration resolution
+- Added `GitAdapterTest` (419 lines) covering status, diff, staging, commit, branch, and push/pull
+- Expanded `OpenAILLMTest` with Responses API completion and streaming tests
+- Refactored `VLLMTest` for SnakeBridge-based implementation
+- Added `LlmSdkBehaviours` test support module for mock definitions
+- Added `VLLMSdkMock` to test configuration
 
 ## [0.4.0] - 2026-01-08
 
@@ -438,7 +513,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of PortfolioIndex
 
-[Unreleased]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/nshkrdotcom/portfolio_index/compare/v0.2.0...v0.3.0

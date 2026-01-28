@@ -154,7 +154,9 @@ defmodule PortfolioIndex.Adapters.LLM.Ollama do
       content: fetch_value(message, [:content, "content"], ""),
       model: response_model(response),
       usage: normalize_usage(response),
-      finish_reason: normalize_finish_reason(fetch_value(response, [:done_reason, "done_reason"]))
+      finish_reason:
+        normalize_finish_reason(fetch_value(response, [:done_reason, "done_reason"])),
+      response_id: nil
     }
   end
 

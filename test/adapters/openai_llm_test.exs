@@ -92,6 +92,96 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAITest do
       assert response.model == "gpt-3.5-turbo"
     end
 
+    test "honors api override to chat completions for gpt-5 models", %{bypass: bypass, url: url} do
+      Bypass.expect(bypass, "POST", "/v1/chat/completions", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        decoded = Jason.decode!(body)
+
+        assert decoded["model"] == "gpt-5-nano"
+        assert decoded["max_completion_tokens"] == 10
+        assert decoded["max_output_tokens"] == nil
+
+        response = %{
+          "id" => "chatcmpl_test_chat_override",
+          "object" => "chat.completion",
+          "created" => 1_700_000_004,
+          "model" => "gpt-5-nano",
+          "choices" => [
+            %{
+              "index" => 0,
+              "message" => %{"role" => "assistant", "content" => "Hi"},
+              "finish_reason" => "stop"
+            }
+          ],
+          "usage" => %{"prompt_tokens" => 1, "completion_tokens" => 1}
+        }
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(response))
+      end)
+
+      {:ok, response} =
+        OpenAI.complete(
+          [%{role: :user, content: "Hi"}],
+          model: "gpt-5-nano",
+          max_tokens: 10,
+          api: :chat_completions,
+          api_key: "test-key",
+          base_url: url <> "/v1"
+        )
+
+      assert response.model == "gpt-5-nano"
+      assert response.response_id == nil
+    end
+
+    test "maps max_tokens to max_output_tokens for gpt-5 models via Responses API", %{
+      bypass: bypass,
+      url: url
+    } do
+      Bypass.expect(bypass, "POST", "/v1/responses", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        decoded = Jason.decode!(body)
+
+        assert decoded["model"] == "gpt-5-nano"
+        assert decoded["max_output_tokens"] == 10
+        assert decoded["input"] == [%{"role" => "user", "content" => "Hi"}]
+
+        response = %{
+          "id" => "resp_test_completion_tokens",
+          "object" => "response",
+          "created" => 1_700_000_003,
+          "model" => "gpt-5-nano",
+          "status" => "completed",
+          "output" => [
+            %{
+              "type" => "message",
+              "role" => "assistant",
+              "content" => [%{"type" => "output_text", "text" => "Hi"}]
+            }
+          ],
+          "usage" => %{"input_tokens" => 1, "output_tokens" => 1}
+        }
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(response))
+      end)
+
+      {:ok, response} =
+        OpenAI.complete(
+          [%{role: :user, content: "Hi"}],
+          model: "gpt-5-nano",
+          max_tokens: 10,
+          api_key: "test-key",
+          base_url: url <> "/v1"
+        )
+
+      assert response.model == "gpt-5-nano"
+      assert response.content == "Hi"
+      assert response.response_id == "resp_test_completion_tokens"
+    end
+
     test "includes lineage context in telemetry metadata", %{bypass: bypass, url: url} do
       ref = make_ref()
 
@@ -197,6 +287,46 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAITest do
       assert Enum.map(chunks, & &1.delta) == ["Hello", "!", ""]
       assert List.last(chunks).finish_reason == :stop
     end
+
+    test "streams responses API output for gpt-5 models", %{bypass: bypass, url: url} do
+      Bypass.expect(bypass, "POST", "/v1/responses", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        decoded = Jason.decode!(body)
+
+        assert decoded["model"] == "gpt-5-nano"
+        refute Map.has_key?(decoded, "stream_options")
+
+        conn =
+          conn
+          |> Plug.Conn.put_resp_content_type("text/event-stream")
+          |> Plug.Conn.send_chunked(200)
+
+        {:ok, conn} =
+          Plug.Conn.chunk(
+            conn,
+            "event: response.output_text.delta\ndata: {\"delta\":\"Hello\"}\n\n"
+          )
+
+        {:ok, conn} =
+          Plug.Conn.chunk(conn, "event: response.completed\ndata: {}\n\n")
+
+        conn
+      end)
+
+      {:ok, stream} =
+        OpenAI.stream(
+          [%{role: :user, content: "Hi"}],
+          model: "gpt-5-nano",
+          api: :responses,
+          max_tokens: 10,
+          api_key: "test-key",
+          base_url: url <> "/v1"
+        )
+
+      chunks = Enum.to_list(stream)
+      assert Enum.map(chunks, & &1.delta) == ["Hello", ""]
+      assert List.last(chunks).finish_reason == :stop
+    end
   end
 
   describe "complete/2 live" do
@@ -216,7 +346,11 @@ defmodule PortfolioIndex.Adapters.LLM.OpenAITest do
         end)
 
         {:ok, result} =
-          OpenAI.complete([%{role: :user, content: "Say hello in one word"}], max_tokens: 10)
+          OpenAI.complete(
+            [%{role: :user, content: "Say hello in one word"}],
+            max_tokens: 10,
+            model: "gpt-5-nano"
+          )
 
         assert is_binary(result.content)
         assert result.model != nil

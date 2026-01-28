@@ -5,6 +5,10 @@ defmodule PortfolioIndex.Schemas.QueriesTest do
   alias PortfolioIndex.Repo
   alias PortfolioIndex.Schemas.{Chunk, Collection, Document, Queries}
 
+  defp one_hot_vector(dimensions, hot_index) do
+    for i <- 0..(dimensions - 1), do: if(i == hot_index, do: 1.0, else: 0.0)
+  end
+
   setup tags do
     if tags[:integration] do
       pid = Sandbox.start_owner!(Repo, shared: true)
@@ -239,9 +243,9 @@ defmodule PortfolioIndex.Schemas.QueriesTest do
 
       # Create chunks with different embeddings
       embeddings = [
-        List.duplicate(0.9, 384),
-        List.duplicate(0.5, 384),
-        List.duplicate(0.1, 384)
+        one_hot_vector(384, 0),
+        one_hot_vector(384, 1),
+        one_hot_vector(384, 2)
       ]
 
       chunks =
@@ -256,7 +260,7 @@ defmodule PortfolioIndex.Schemas.QueriesTest do
         end
 
       # Search with query similar to first chunk
-      query_embedding = List.duplicate(0.9, 384)
+      query_embedding = one_hot_vector(384, 0)
       results = Queries.similarity_search(Repo, query_embedding, limit: 2)
 
       assert length(results) == 2

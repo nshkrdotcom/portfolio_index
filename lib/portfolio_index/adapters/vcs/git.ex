@@ -27,12 +27,16 @@ defmodule PortfolioIndex.Adapters.VCS.Git do
 
   @impl true
   def is_repo?(repo) do
-    case System.cmd("git", ["rev-parse", "--git-dir"],
-           cd: repo,
-           stderr_to_stdout: true
-         ) do
-      {_, 0} -> true
-      _ -> false
+    if File.dir?(repo) do
+      case System.cmd("git", ["rev-parse", "--git-dir"],
+             cd: repo,
+             stderr_to_stdout: true
+           ) do
+        {_, 0} -> true
+        _ -> false
+      end
+    else
+      false
     end
   end
 

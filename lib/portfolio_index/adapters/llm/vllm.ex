@@ -163,7 +163,8 @@ defmodule PortfolioIndex.Adapters.LLM.VLLM do
          input_tokens: input_tokens,
          output_tokens: output_tokens
        },
-       finish_reason: finish_reason
+       finish_reason: finish_reason,
+       response_id: nil
      }}
   end
 

@@ -290,7 +290,8 @@ defmodule PortfolioIndex.Adapters.LLM.Anthropic do
            content: content,
            model: model,
            usage: usage,
-           finish_reason: finish_reason
+           finish_reason: finish_reason,
+           response_id: nil
          }}
     end
   end
