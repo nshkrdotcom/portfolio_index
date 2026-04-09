@@ -878,8 +878,7 @@ Comprehensive guides are available on [HexDocs](https://hexdocs.pm/portfolio_ind
 ## Acknowledgments
 
 Significant portions of this library's architecture and features were derived from
-analysis of [Arcana](https://github.com/georgeguimaraes/arcana) by George Guimarães,
-licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+analysis of [Arcana](https://github.com/georgeguimaraes/arcana) by George Guimarães.
 
 Features inspired by Arcana include:
 - RAG pipeline architecture (query rewriting, expansion, decomposition)
